@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+{% if demo_mode %}
+<div class="demo-banner">
+  ⚠️ <strong>Demo Mode Active</strong> — Pre-seeded sandbox data. PayPal API calls are simulated.
+  <a href="#" style="color:var(--warning);margin-left:auto;font-weight:700;text-decoration:underline;">Connect Live API →</a>
+</div>
+{% endif %}
+
+<!-- Page Header -->
+<div class="page-header flex items-center justify-between">
+  <div>
+    <h1 class="page-title">Gig Worker <span>Dashboard</span></h1>
+    <p class="page-subtitle">Your PayFlow Overdraft Command Center — real-time wallet & credit insights</p>
+  </div>
+  <div class="flex gap-sm">
+    <button class="btn btn-ghost btn-sm" onclick="simulateIncome()">⬆ Receive Payment</button>
+    <a href="/checkout" class="btn btn-primary btn-sm">🛒 New Checkout</a>
+  </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+  <!-- Wallet Balance -->
+  <div class="card" id="balance-card">
+    <div class="card-title">💰 Wallet Balance</div>
+    <div class="card-value {% if wallet_balance < 20 %}warning{% endif %}" id="wallet-balance">
+      ${{ "%.2f"|format(wallet_balance) }}
+    </div>
+    <div class="card-meta">PayPal sandbox account</div>
+    {% if wallet_balance < 20 %}
+    <div class="badge badge-warning mt-sm"><span class="badge-dot"></span> Low Balance</div>
+    {% else %}
+    <div class="badge badge-success mt-sm">✓ Healthy</div>
+    {% endif %}
+  </div>
+
+  <!-- Overdraft Limit -->
+  <div class="card">
+    <div class="card-title">💳 Overdraft Limit</div>
+    <div class="card-value success">${{ "%.2f"|format(overdraft_limit) }}</div>
+    <div class="card-meta">25% of ${{ "%.2f"|format(thirty_day_income) }} 30-day income</div>
+    <div class="progress-bar mt-sm">
+      {% set used = active_overdraft.total_owed if active_overdraft else 0 %}
+      {% set pct = [(used / overdraft_limit * 100) if overdraft_limit > 0 else 0, 100]|min %}
+      <div class="progress-fill {% if pct > 75 %}danger{% elif pct > 40 %}warning{% endif %}" style="width:{{ pct }}%"></div>
+    </div>
+    <div class="card-meta">{{ "%.0f"|format(pct) }}% used</div>
+  </div>
+
+  <!-- Risk Tier -->
+  <div class="card">
+    <div class="card-title">📊 Risk Tier</div>
+    <div class="card-value" style="font-size:1.8rem">
+      {% if risk_tier == 'LOW' %}🟢{% elif risk_tier == 'MEDIUM' %}🟡{% else %}🔴{% endif %}
+      {{ risk_tier }}
+    </div>
+    <div class="card-meta">Based on 30-day income history</div>
+    <div class="badge {% if risk_tier == 'LOW' %}badge-success{% elif risk_tier == 'MEDIUM' %}badge-warning{% else %}badge-danger{% endif %} mt-sm">
+      {{ risk_tier }} RISK
+    </div>
+  </div>
+
+  <!-- 30-Day Income -->
+  <div class="card">
+    <div class="card-title">📈 30-Day Income</div>
+    <div class="card-value">${{ "%.2f"|format(thirty_day_income) }}</div>
+    <div class="card-meta">Total incoming PayPal payments</div>
+    <div class="badge badge-info mt-sm">⬆ Income Score</div>
+  </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid-sidebar">
+  <!-- Left: Charts + Transactions -->
+  <div>
+    <!-- Income Chart -->
+    <div class="card mb-lg">
+      <div class="flex items-center justify-between mb-lg">
+        <div class="card-title" style="margin-bottom:0">📉 7-Day Cash Flow</div>
+        <div class="flex gap-sm" style="font-size:0.75rem;color:var(--text-muted)">
+          <span style="color:var(--success)">■ Income</span>
+          <span style="color:var(--danger)">■ Expenses</span>
+        </div>
+      </div>
+      <canvas id="cashFlowChart" height="80"></canvas>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-lg">
+        <div class="card-title" style="margin-bottom:0">🔄 Recent Transactions</div>
+        <span class="badge badge-muted">{{ transactions|length }} records</span>
+      </div>
+      {% if transactions %}
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Description</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tx in transactions %}
+            <tr>
+              <td>
+                <span class="badge {% if tx.direction == 'IN' %}badge-success{% else %}badge-danger{% endif %}">
+                  {% if tx.direction == 'IN' %}⬇ IN{% else %}⬆ OUT{% endif %}
+                </span>
+              </td>
+              <td class="tx-amount {% if tx.direction == 'IN' %}tx-in{% else %}tx-out{% endif %}">
+                {% if tx.direction == 'IN' %}+{% else %}-{% endif %}${{ "%.2f"|format(tx.amount) }}
+              </td>
+              <td>{{ tx.description or '—' }}</td>
+              <td style="color:var(--text-muted);font-size:0.78rem">{{ tx.created_at.strftime('%b %d, %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center" style="padding:var(--space-xl);color:var(--text-muted)">
+        No transactions yet. <a href="/checkout" style="color:var(--info)">Make your first checkout →</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: Overdraft Panel -->
+  <div>
+    <!-- Active Overdraft -->
+    {% if active_overdraft %}
+    <div class="overdraft-hero mb-lg">
+      <div class="card-title">⚡ Active Overdraft Buffer</div>
+      <div class="hero-amount">${{ "%.2f"|format(active_overdraft.total_owed) }}</div>
+      <div class="card-meta mt-sm">
+        ${{ "%.2f"|format(active_overdraft.amount_covered) }} covered + ${{ "%.2f"|format(active_overdraft.flat_fee) }} flat fee
+      </div>
+      <div class="divider"></div>
+
+      <!-- Timeline -->
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot success"></div>
+          <div class="timeline-label">Overdraft Activated</div>
+          <div class="timeline-date">{{ active_overdraft.created_at.strftime('%B %d, %Y at %H:%M UTC') }}</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot {% if active_overdraft.days_overdue > 0 %}success danger{% else %}active{% endif %}"></div>
+          <div class="timeline-label">Auto-Repayment Due</div>
+          <div class="timeline-date">{{ active_overdraft.due_date.strftime('%B %d, %Y') }}</div>
+          {% if active_overdraft.days_overdue > 0 %}
+          <div class="timeline-desc" style="color:var(--danger)">{{ active_overdraft.days_overdue }} days overdue</div>
+          {% else %}
+          <div class="timeline-desc" style="color:var(--success)">On next incoming payment</div>
+          {% endif %}
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot muted"></div>
+          <div class="timeline-label">Repaid</div>
+          <div class="timeline-desc">Pending auto-payment</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn btn-gold btn-full" onclick="simulateWebhook()">
+        ⚡ Simulate Incoming Payment → Auto-Repay
+      </button>
+    </div>
+    {% else %}
+    <div class="card mb-lg" style="border-color:rgba(0,212,170,0.2)">
+      <div style="text-align:center;padding:var(--space-lg)">
+        <div style="font-size:2.5rem;margin-bottom:var(--space-md)">✅</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success)">No Active Overdraft</div>
+        <div style="font-size:0.875rem;color:var(--text-muted);margin-top:var(--space-sm)">
+          Your limit of <strong style="color:var(--success)">${{ "%.2f"|format(overdraft_limit) }}</strong> is available
+        </div>
+        <a href="/checkout" class="btn btn-primary mt-lg btn-sm">Try a Checkout</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="card">
+      <div class="card-title">🎮 Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+        <button class="btn btn-ghost btn-sm" onclick="simulateIncome(25)">
+          ⬇ Receive $25 Payment
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="simulateIncome(50)">
+          ⬇ Receive $50 Payment
+        </button>
+        <a href="/checkout" class="btn btn-ghost btn-sm">🛒 Simulate $40 Checkout</a>
+        <a href="/webhooks/simulate" class="btn btn-ghost btn-sm" id="webhook-sim-btn" onclick="triggerWebhookSim(event)">⚡ Fire Webhook Event</a>
+        <a href="/ai" class="btn btn-primary btn-sm">🤖 Ask AI Assistant</a>
+      </div>
+    </div>
+
+    <!-- Overdraft History -->
+    {% if od_history %}
+    <div class="card mt-lg">
+      <div class="card-title">📋 Overdraft History</div>
+      {% for od in od_history[:5] %}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-sm) 0;border-bottom:1px solid var(--border-glass)">
+        <div>
+          <div style="font-size:0.875rem;font-weight:600">${{ "%.2f"|format(od.amount_covered) }}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted)">{{ od.created_at.strftime('%b %d') }}</div>
+        </div>
+        <span class="badge {% if od.status == 'REPAID' %}badge-success{% elif od.status == 'ACTIVE' %}badge-warning{% else %}badge-danger{% endif %}">
+          {{ od.status }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Chart.js — Cash Flow
+const ctx = document.getElementById('cashFlowChart').getContext('2d');
+const labels = {{ chart_labels|tojson }};
+const incomeData = {{ chart_income|tojson }};
+const expenseData = {{ chart_expenses|tojson }};
+
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Income',
+        data: incomeData,
+        backgroundColor: 'rgba(0, 212, 170, 0.25)',
+        borderColor: 'rgba(0, 212, 170, 0.8)',
+        borderWidth: 2,
+        borderRadius: 6,
+      },
+      {
+        label: 'Expenses',
+        data: expenseData,
+        backgroundColor: 'rgba(255, 77, 109, 0.2)',
+        borderColor: 'rgba(255, 77, 109, 0.7)',
+        borderWidth: 2,
+        borderRadius: 6,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(13,21,37,0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        titleColor: '#f0f4ff',
+        bodyColor: 'rgba(240,244,255,0.7)',
+        callbacks: { label: ctx => ` $${ctx.parsed.y.toFixed(2)}` }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: 'rgba(240,244,255,0.4)', font: { size: 11 } }
+      },
+      y: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: 'rgba(240,244,255,0.4)', callback: v => '$' + v, font: { size: 11 } }
+      }
+    }
+  }
+});
+
+async function simulateIncome(amount = 50) {
+  try {
+    showToast(`Simulating $${amount} incoming payment...`, 'info');
+    const res = await fetch('/api/overdraft/simulate-income', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const data = await res.json();
+    showToast(data.message || `$${amount} received!`, 'success');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showToast('Error simulating income', 'error');
+  }
+}
+
+async function triggerWebhookSim(e) {
+  e.preventDefault();
+  try {
+    showToast('Firing PAYMENT.CAPTURE.COMPLETED webhook...', 'info');
+    const res = await fetch('/webhooks/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 50 })
+    });
+    const data = await res.json();
+    showToast(data.message || 'Webhook processed!', 'success');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showToast('Webhook simulation failed', 'error');
+  }
+}
+
+async function simulateWebhook() {
+  await triggerWebhookSim({ preventDefault: () => {} });
+}
+</script>
+{% endblock %}

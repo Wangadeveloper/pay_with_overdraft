@@ -1,0 +1,806 @@
+{% extends "base.html" %}
+{% block title %}Checkout — PayFlow Overdraft{% endblock %}
+
+{% block head_extra %}
+{% if paypal_client_id and not demo_mode %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD" id="paypal-sdk"></script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🛒 Overdraft-Protected <span>Checkout</span></h1>
+  <p class="page-subtitle">Your PayFlow gap detector monitors every transaction in real-time</p>
+</div>
+
+{% if demo_mode %}
+<div class="demo-banner">
+  🎬 <strong>Demo Mode:</strong> PayPal orders are simulated. Live balance API not called — using cached value.
+</div>
+{% endif %}
+
+<!-- Live Balance Banner -->
+<div id="balance-status-bar" style="
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-sm);
+  padding:var(--space-sm) var(--space-md);
+  background:rgba(0,112,186,0.07);
+  border:1px solid rgba(0,112,186,0.2);
+  border-radius:var(--radius-md);
+  margin-bottom:var(--space-lg);
+  font-size:0.825rem;
+">
+  <div style="display:flex;align-items:center;gap:var(--space-sm)">
+    <span id="balance-source-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block;flex-shrink:0"></span>
+    <span id="balance-source-label" style="color:var(--text-muted)">Fetching live account balance…</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:var(--space-md)">
+    <span id="balance-live-amount" style="font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:var(--text-primary)">—</span>
+    <button
+      id="refresh-balance-btn"
+      onclick="fetchLiveBalance()"
+      style="
+        padding:4px 12px;font-size:0.75rem;font-weight:600;border-radius:20px;cursor:pointer;
+        background:transparent;border:1px solid rgba(0,112,186,0.4);color:var(--info);
+        transition:all 0.2s;
+      "
+      onmouseover="this.style.background='rgba(0,112,186,0.12)'"
+      onmouseout="this.style.background='transparent'"
+    >
+      🔄 Refresh Balance
+    </button>
+  </div>
+</div>
+
+<div class="grid-sidebar">
+  <!-- Left: Checkout Form -->
+  <div>
+    <!-- Order Setup -->
+    <div class="card mb-lg">
+      <div class="card-title">📦 Order Details</div>
+
+      <div class="form-group">
+        <label class="form-label">Order Amount (USD)</label>
+        <div style="display:flex;align-items:center;gap:var(--space-sm)">
+          <span style="font-size:1.5rem;color:var(--text-muted);font-weight:700">$</span>
+          <input
+            type="number"
+            id="order-amount"
+            class="form-input"
+            value="5200.00"
+            min="1"
+            max="100000"
+            step="0.01"
+            placeholder="Enter order amount"
+            oninput="updateGapDetector()"
+          />
+        </div>
+        <div style="margin-top:var(--space-xs);font-size:0.75rem;color:var(--text-muted)">
+          💡 Try an amount greater than your wallet balance to trigger PayFlow overdraft
+        </div>
+      </div>
+
+      <!-- Gap Detector Live Display -->
+      <div id="gap-display" class="card" style="margin-top:var(--space-md);background:rgba(255,255,255,0.03)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm)">
+          <div class="card-title" style="margin:0">⚡ Gap Detector Engine</div>
+          <span id="balance-live-badge" style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,212,170,0.12);color:var(--success);border:1px solid rgba(0,212,170,0.3);display:none">
+            ● LIVE
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:var(--space-md);text-align:center;align-items:center">
+          <div>
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Order</div>
+            <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--text-primary)" id="gap-order">$5,200.00</div>
+          </div>
+          <div style="font-size:1.5rem;color:var(--text-muted)">−</div>
+          <div>
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">
+              Wallet Balance
+              <span id="gap-wallet-source" style="color:var(--success);display:none"> (live)</span>
+            </div>
+            <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--warning)" id="gap-wallet">
+              ${{ "%.2f"|format(wallet_balance) }}
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-top:var(--space-md);padding:var(--space-md);border-radius:var(--radius-md)" id="shortfall-result">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+      <!-- Shortfall Alert -->
+      <div id="shortfall-alert" class="hidden shortfall-alert">
+        <div style="display:flex;align-items:center;gap:var(--space-md)">
+          <div style="font-size:2rem">⚠️</div>
+          <div>
+            <div style="font-weight:700;color:var(--danger);font-size:0.95rem">Wallet Shortfall Detected</div>
+            <div style="font-size:0.875rem;color:var(--text-secondary);margin-top:4px" id="shortfall-desc"></div>
+          </div>
+        </div>
+        <div id="overdraft-offer" style="margin-top:var(--space-md);padding:var(--space-md);background:rgba(0,112,186,0.1);border-radius:var(--radius-sm);border:1px solid rgba(0,112,186,0.25)">
+          <div style="font-size:0.875rem;color:var(--info);font-weight:600">✨ PayFlow Overdraft Available</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px" id="overdraft-offer-text"></div>
+        </div>
+      </div>
+
+      <!-- Success Display -->
+      <div id="success-alert" class="hidden" style="margin-top:var(--space-lg)">
+        <div class="alert alert-success">
+          <div class="alert-icon">✅</div>
+          <div>
+            <div class="alert-title">Payment Successful!</div>
+            <div class="alert-text" id="success-text"></div>
+          </div>
+        </div>
+        <div id="overdraft-activated-info" class="hidden" style="margin-top:var(--space-md)">
+          <div class="card" style="border-color:rgba(255,196,57,0.3)">
+            <div class="card-title">⚡ Overdraft Buffer Activated</div>
+            <div id="overdraft-details"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Display -->
+      <div id="error-alert" class="hidden" style="margin-top:var(--space-lg)">
+        <div class="alert alert-danger">
+          <div class="alert-icon">❌</div>
+          <div>
+            <div class="alert-title" id="error-title">Payment Failed</div>
+            <div class="alert-text" id="error-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PayPal Buttons -->
+    <div class="card">
+      <div class="card-title">💳 Payment Method</div>
+
+      {% if demo_mode %}
+      <!-- Demo Mode Buttons -->
+      <div id="demo-buttons">
+        <button class="btn btn-primary btn-full btn-lg" onclick="initiateCheckoutFlow()" id="checkout-btn">
+          ⚡ Process with PayFlow Overdraft
+        </button>
+        <div style="text-align:center;margin-top:var(--space-sm);font-size:0.75rem;color:var(--text-muted)">
+          Demo mode — PayPal orders simulated
+        </div>
+      </div>
+      {% else %}
+      <!-- Live PayPal Buttons -->
+      <div id="payflow-phase-1" style="margin-bottom:var(--space-md)">
+        <button class="btn btn-primary btn-full btn-lg" onclick="initiateCheckoutFlow()" id="checkout-btn">
+          ⚡ Start PayFlow Checkout
+        </button>
+      </div>
+      <div id="paypal-button-container" style="display:none"></div>
+      <div style="text-align:center;margin-top:var(--space-sm);font-size:0.75rem;color:var(--text-muted)">
+        🔒 Powered by PayPal Sandbox
+      </div>
+      <div style="margin-top:var(--space-md);padding:var(--space-sm) var(--space-md);background:rgba(0,112,186,0.08);border:1px solid rgba(0,112,186,0.25);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--info);line-height:1.4">
+        💡 <strong>Sandbox Buyer Account:</strong>
+        <code>{{ buyer_email }}</code><br>
+        <span style="color:var(--text-muted)">Log in with this account when the PayPal popup appears.</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: Summary Panel -->
+  <div>
+    <!-- Wallet Status -->
+    <div class="card mb-lg" style="border-color:rgba(0,112,186,0.3)">
+      <div class="card-title">💰 Wallet Status</div>
+      <div style="position:relative">
+        <div class="hero-amount" id="sidebar-balance">${{ "%.2f"|format(wallet_balance) }}</div>
+        <div id="sidebar-balance-loading" style="display:none;position:absolute;top:50%;right:0;transform:translateY(-50%)">
+          <div style="width:16px;height:16px;border:2px solid var(--info);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        </div>
+      </div>
+      <div class="card-meta" id="sidebar-balance-label">
+        Cached balance — fetching live…
+      </div>
+      <div class="divider"></div>
+
+      <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Overdraft Limit</span>
+          <span style="font-weight:700;color:var(--success)">${{ "%.2f"|format(overdraft_limit) }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Flat Fee</span>
+          <span style="font-weight:700;color:var(--text-primary)">$0.50</span>
+        </div>
+        {% if active_overdraft %}
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Currently Owed</span>
+          <span style="font-weight:700;color:var(--warning)">${{ "%.2f"|format(active_overdraft.total_owed) }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="card mb-lg">
+      <div class="card-title">🔄 How PayFlow Works</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot success"></div>
+          <div class="timeline-label">0. Live Balance Fetch</div>
+          <div class="timeline-desc">Real balance pulled from PayPal API on load</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot success"></div>
+          <div class="timeline-label">1. Gap Detection</div>
+          <div class="timeline-desc">Flask detects wallet shortfall instantly</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot success"></div>
+          <div class="timeline-label">2. Risk Score</div>
+          <div class="timeline-desc">25% of 30-day income → Your limit</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot active"></div>
+          <div class="timeline-label">3. Buffer Injection</div>
+          <div class="timeline-desc">PayPal Payouts API covers the delta</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot muted"></div>
+          <div class="timeline-label">4. Auto-Repayment</div>
+          <div class="timeline-desc">Next incoming payment clears debt + $0.50 fee</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Scenarios -->
+    <div class="card">
+      <div class="card-title">🎮 Test Scenarios</div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+        <button class="btn btn-ghost btn-sm" onclick="setScenario('over')" id="scenario-over-btn">
+          ⚡ Overdraft: $200 over balance
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="setScenario('big')" id="scenario-big-btn">
+          🚫 Over Limit: $1,000 over balance
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="setScenario('under')" id="scenario-under-btn">
+          ✅ No Overdraft: $100 under balance
+        </button>
+      </div>
+      <div id="scenario-hint" style="margin-top:var(--space-sm);font-size:0.72rem;color:var(--text-muted);line-height:1.4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Overdraft Confirmation Modal -->
+<div id="overdraft-modal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-icon-badge">⚡</div>
+      <div>
+        <div class="modal-title">Insufficient Balance</div>
+        <div class="modal-subtitle">Activate PayFlow Overdraft to proceed?</div>
+      </div>
+    </div>
+
+    <div class="modal-summary-box">
+      <div class="modal-row">
+        <span class="modal-row-label">Order Total</span>
+        <span class="modal-row-value" id="modal-order-total">$0.00</span>
+      </div>
+      <div class="modal-row">
+        <span class="modal-row-label">Your Wallet Balance</span>
+        <span class="modal-row-value" id="modal-wallet-balance" style="color:var(--warning)">$0.00</span>
+      </div>
+      <div class="modal-row" style="font-size:0.75rem">
+        <span class="modal-row-label" style="color:var(--text-muted)">Balance Source</span>
+        <span id="modal-balance-source" style="color:var(--success);font-size:0.75rem">—</span>
+      </div>
+      <div class="divider" style="margin:var(--space-xs) 0"></div>
+      <div class="modal-row">
+        <span class="modal-row-label">Required Overdraft Buffer</span>
+        <span class="modal-row-value" id="modal-shortfall" style="color:var(--warning);font-size:1.1rem;font-weight:700">$0.00</span>
+      </div>
+      <div class="modal-row">
+        <span class="modal-row-label">PayFlow Service Fee</span>
+        <span class="modal-row-value">$0.50</span>
+      </div>
+      <div class="divider" style="margin:var(--space-xs) 0"></div>
+      <div class="modal-row">
+        <span class="modal-row-label" style="font-weight:700;color:var(--text-primary)">Total Owed to PayFlow</span>
+        <span class="modal-row-value" id="modal-total-owed" style="color:var(--danger);font-size:1.15rem;font-weight:800">$0.00</span>
+      </div>
+    </div>
+
+    <div class="modal-terms-notice">
+      <span>ℹ️</span>
+      <div>
+        <strong>Auto-Repayment Notice:</strong> The overdraft buffer of <span id="modal-notice-buffer">$0.00</span> + $0.50 fee will automatically be deducted from your next incoming PayPal transfer.
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cancelOverdraftModal()" id="modal-cancel-btn">
+        Cancel Transaction
+      </button>
+      <button class="btn btn-primary" onclick="confirmOverdraftModal()" id="modal-confirm-btn">
+        ⚡ Accept &amp; Pay
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes balancePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,212,170,0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(0,212,170,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,212,170,0); }
+}
+.balance-updated { animation: balancePulse 0.6s ease-out; }
+</style>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let walletBalance = {{ wallet_balance }};   // seeded value; overwritten by live fetch
+let overdraftLimit = {{ overdraft_limit }};
+const demoMode = {{ 'true' if demo_mode else 'false' }};
+let balanceSource = 'seeded';               // 'seeded' | 'paypal_balances_api' | 'cached'
+let overdraftResolveFunc = null;
+let currentPayoutBatchId = null;
+let currentBufferId = null;
+let paypalButtonsRendered = false;
+
+// ── Phase 0: Live Balance Fetch ───────────────────────────────────────────────
+
+async function fetchLiveBalance() {
+  const btn = document.getElementById('refresh-balance-btn');
+  const label = document.getElementById('balance-source-label');
+  const dot = document.getElementById('balance-source-dot');
+  const badge = document.getElementById('balance-live-badge');
+  const loadingEl = document.getElementById('sidebar-balance-loading');
+  const sidebarLabel = document.getElementById('sidebar-balance-label');
+
+  // Loading state
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching…'; }
+  if (label) { label.textContent = 'Fetching live balance from PayPal…'; label.style.color = 'var(--warning)'; }
+  if (dot) dot.style.background = 'var(--warning)';
+  if (loadingEl) loadingEl.style.display = 'block';
+
+  try {
+    const res = await fetch('/api/balance/live');
+    const data = await res.json();
+
+    const newBalance = parseFloat(data.balance) || walletBalance;
+    balanceSource = data.source || 'cached';
+    const isLive = balanceSource === 'paypal_balances_api';
+
+    // Update JS state so gap detector uses real balance
+    walletBalance = newBalance;
+    updateGapDetector();
+
+    // Update balance bar
+    const amountEl = document.getElementById('balance-live-amount');
+    if (amountEl) {
+      amountEl.textContent = '$' + newBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      amountEl.style.color = isLive ? 'var(--success)' : 'var(--warning)';
+    }
+
+    if (label) {
+      label.textContent = isLive
+        ? `Live balance from PayPal Balances API — ${data.account_email || ''}`
+        : `Balance source: ${balanceSource === 'simulated' ? 'Demo (simulated)' : 'Cached / API unavailable'}`;
+      label.style.color = isLive ? 'var(--success)' : 'var(--text-muted)';
+    }
+    if (dot) dot.style.background = isLive ? 'var(--success)' : 'var(--text-muted)';
+    if (badge) badge.style.display = isLive ? 'inline-block' : 'none';
+
+    // Update gap-wallet source indicator
+    const walletSrc = document.getElementById('gap-wallet-source');
+    if (walletSrc) walletSrc.style.display = isLive ? 'inline' : 'none';
+
+    // Update sidebar balance with pulse animation
+    const sidebarEl = document.getElementById('sidebar-balance');
+    if (sidebarEl) {
+      sidebarEl.textContent = '$' + newBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      sidebarEl.classList.remove('balance-updated');
+      void sidebarEl.offsetWidth; // force reflow
+      sidebarEl.classList.add('balance-updated');
+    }
+    if (sidebarLabel) {
+      sidebarLabel.textContent = isLive
+        ? '✅ Live PayPal balance (Balances API)'
+        : balanceSource === 'simulated' ? '🎬 Demo simulated balance' : '⚠️ Cached balance (API unavailable)';
+      sidebarLabel.style.color = isLive ? 'var(--success)' : '';
+    }
+
+    showToast(isLive
+      ? `✅ Live balance synced: $${newBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+      : `⚠️ ${data.message || 'Using cached balance'}`, isLive ? 'success' : 'warning');
+
+  } catch (err) {
+    if (label) { label.textContent = 'Balance fetch failed — using cached value'; label.style.color = 'var(--danger)'; }
+    if (dot) dot.style.background = 'var(--danger)';
+    showToast('❌ Balance fetch error: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Balance'; }
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+// ── Modal Helpers ─────────────────────────────────────────────────────────────
+
+function promptOverdraftConfirmation(amount, shortfall) {
+  return new Promise((resolve) => {
+    overdraftResolveFunc = resolve;
+    const totalOwed = (shortfall + 0.50).toFixed(2);
+    document.getElementById('modal-order-total').textContent = '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    document.getElementById('modal-wallet-balance').textContent = '$' + walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    document.getElementById('modal-shortfall').textContent = '$' + shortfall.toFixed(2);
+    document.getElementById('modal-total-owed').textContent = '$' + totalOwed;
+    document.getElementById('modal-notice-buffer').textContent = '$' + shortfall.toFixed(2);
+    const srcEl = document.getElementById('modal-balance-source');
+    if (srcEl) {
+      const srcMap = {
+        paypal_balances_api: '✅ Live from PayPal API',
+        api_zero_fallback: '⚠️ API returned $0 — using cached',
+        simulated: '🎬 Demo simulated',
+        seeded: '📦 Seeded default',
+        cached: '⚠️ Cached (API unavailable)',
+      };
+      srcEl.textContent = srcMap[balanceSource] || balanceSource;
+    }
+    document.getElementById('overdraft-modal').classList.add('active');
+  });
+}
+
+function confirmOverdraftModal() {
+  document.getElementById('overdraft-modal').classList.remove('active');
+  if (overdraftResolveFunc) overdraftResolveFunc(true);
+}
+
+function cancelOverdraftModal() {
+  document.getElementById('overdraft-modal').classList.remove('active');
+  if (overdraftResolveFunc) overdraftResolveFunc(false);
+}
+
+// ── Gap Detector ──────────────────────────────────────────────────────────────
+
+function updateGapDetector() {
+  const amount = parseFloat(document.getElementById('order-amount').value) || 0;
+  document.getElementById('gap-order').textContent = '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 });
+  document.getElementById('gap-wallet').textContent = '$' + walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+  const shortfall = amount - walletBalance;
+  const resultEl = document.getElementById('shortfall-result');
+  const alertEl = document.getElementById('shortfall-alert');
+  const descEl = document.getElementById('shortfall-desc');
+  const offerEl = document.getElementById('overdraft-offer-text');
+
+  if (shortfall <= 0) {
+    resultEl.innerHTML = `<span style="color:var(--success);font-weight:700;font-size:1.1rem">✅ No Shortfall — Wallet Covers It</span>`;
+    resultEl.style.background = 'rgba(0,212,170,0.08)';
+    alertEl.classList.add('hidden');
+  } else {
+    resultEl.innerHTML = `
+      <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Shortfall</div>
+      <div style="font-family:'Outfit',sans-serif;font-size:2rem;font-weight:800;color:var(--danger)">$${shortfall.toFixed(2)}</div>
+    `;
+    resultEl.style.background = 'rgba(255,77,109,0.08)';
+    alertEl.classList.remove('hidden');
+    descEl.textContent = `Your wallet has $${walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} but the order requires $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} — PayFlow will cover the $${shortfall.toFixed(2)} gap.`;
+
+    const offer = document.getElementById('overdraft-offer');
+    if (shortfall <= overdraftLimit) {
+      offerEl.textContent = `✓ Overdraft of $${shortfall.toFixed(2)} + $0.50 fee available. Requires your confirmation.`;
+      offer.style.borderColor = 'rgba(0,112,186,0.25)';
+    } else {
+      offerEl.textContent = `⚠ Shortfall of $${shortfall.toFixed(2)} exceeds your limit of $${overdraftLimit.toFixed(2)}. Checkout will be declined.`;
+      offer.style.borderColor = 'rgba(255,77,109,0.4)';
+    }
+  }
+}
+
+function setScenario(type) {
+  const base = walletBalance;
+  const hintEl = document.getElementById('scenario-hint');
+  let val, hint;
+  if (type === 'over') {
+    val = base + 200;
+    hint = `$200 over your balance → PayFlow injects $200.00 (+$0.50 fee)`;
+  } else if (type === 'big') {
+    val = base + 1000;
+    hint = `$1,000 over your balance → shortfall likely exceeds overdraft limit`;
+  } else {
+    val = Math.max(1, base - 100);
+    hint = `$100 under balance → wallet covers it, no overdraft needed`;
+  }
+  document.getElementById('order-amount').value = val.toFixed(2);
+  if (hintEl) hintEl.textContent = hint;
+  updateGapDetector();
+}
+
+// ── Main Checkout Flow (Two-Phase) ────────────────────────────────────────────
+
+async function initiateCheckoutFlow() {
+  const amount = parseFloat(document.getElementById('order-amount').value) || 0;
+  const shortfall = amount - walletBalance;
+
+  hideAlerts();
+
+  if (shortfall > 0 && shortfall > overdraftLimit) {
+    showError('Overdraft Limit Exceeded',
+      `Shortfall of $${shortfall.toFixed(2)} exceeds your available overdraft limit of $${overdraftLimit.toFixed(2)}.`);
+    return;
+  }
+
+  if (shortfall <= 0) {
+    await proceedToPayPalCheckout(amount);
+    return;
+  }
+
+  // Show confirmation modal (with real balance source shown)
+  const accepted = await promptOverdraftConfirmation(amount, shortfall);
+  if (!accepted) {
+    showToast('ℹ️ Overdraft declined — transaction cancelled.', 'info');
+    return;
+  }
+
+  await runPhase1Overdraft(amount, shortfall);
+}
+
+async function runPhase1Overdraft(amount, shortfall) {
+  const btn = document.getElementById('checkout-btn');
+  setButtonLoading(btn, 'Initiating overdraft…');
+  showStatusBanner('payout-pending', `⏳ PayFlow is sending $${shortfall.toFixed(2)} to your PayPal wallet…`);
+
+  try {
+    const res = await fetch('/api/overdraft/initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.approved) {
+      showError(data.error || 'Overdraft Declined', data.message || 'Credit limit exceeded.');
+      resetButton(btn);
+      return;
+    }
+
+    currentPayoutBatchId = data.payout_batch_id;
+    currentBufferId = data.buffer_id;
+
+    if (data.status === 'PAYOUT_SUCCESS' || demoMode) {
+      showStatusBanner('payout-success', `✅ $${shortfall.toFixed(2)} sent to your PayPal wallet! Proceeding to checkout…`);
+      // Update live balance display to reflect added funds
+      walletBalance = walletBalance + shortfall;
+      updateGapDetector();
+      document.getElementById('sidebar-balance').textContent = '$' + walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+      await sleep(800);
+      resetButton(btn);
+      await proceedToPayPalCheckout(amount);
+    } else {
+      showStatusBanner('payout-pending', `⏳ Payout sent. Waiting for PayPal to confirm funds landed in your wallet…`);
+      await pollPayoutStatus(amount, shortfall);
+    }
+
+  } catch (err) {
+    showError('Network Error', err.message);
+    resetButton(btn);
+  }
+}
+
+async function pollPayoutStatus(amount, shortfall) {
+  const maxAttempts = 20;
+  const intervalMs = 3000;
+  const btn = document.getElementById('checkout-btn');
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await sleep(intervalMs);
+    try {
+      const res = await fetch(`/api/overdraft/payout-status/${currentPayoutBatchId}`);
+      const data = await res.json();
+
+      if (data.payout_landed) {
+        walletBalance = data.wallet_balance || walletBalance;
+        updateGapDetector();
+        showStatusBanner('payout-success', `✅ $${shortfall.toFixed(2)} confirmed in your wallet! Proceeding to checkout…`);
+        await sleep(1000);
+        resetButton(btn);
+        await proceedToPayPalCheckout(amount);
+        return;
+      }
+    } catch (e) {
+      // transient — keep polling
+    }
+  }
+
+  showError('Payout Timeout', 'Payout confirmation is taking longer than expected. Please check your PayPal balance and retry.');
+  resetButton(btn);
+}
+
+// ── Phase 2: PayPal Checkout ──────────────────────────────────────────────────
+
+async function proceedToPayPalCheckout(amount) {
+  clearStatusBanner();
+
+  if (demoMode) {
+    const btn = document.getElementById('checkout-btn');
+    setButtonLoading(btn, 'Processing payment…');
+    try {
+      const createRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      });
+      const orderData = await createRes.json();
+
+      const captureRes = await fetch(`/api/orders/${orderData.id}/capture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      });
+
+      if (!captureRes.ok) {
+        const errData = await captureRes.json();
+        showError(errData.error || 'Payment failed', errData.message || '');
+        return;
+      }
+
+      const captureData = await captureRes.json();
+      showSuccess(captureData);
+    } catch (err) {
+      showError('Error', err.message);
+    } finally {
+      resetButton(btn);
+    }
+  } else {
+    const phase1 = document.getElementById('payflow-phase-1');
+    const ppContainer = document.getElementById('paypal-button-container');
+    if (phase1) phase1.style.display = 'none';
+    if (ppContainer) {
+      ppContainer.style.display = 'block';
+      if (!paypalButtonsRendered) {
+        renderPayPalButtons(amount);
+        paypalButtonsRendered = true;
+      }
+    }
+    showToast('✅ Wallet funded! Click Pay Now to complete your purchase.', 'success');
+  }
+}
+
+{% if not demo_mode and paypal_client_id %}
+function renderPayPalButtons(amount) {
+  paypal.Buttons({
+    createOrder: function() {
+      return fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      }).then(res => res.json()).then(data => data.id);
+    },
+    onApprove: async function(data) {
+      try {
+        const captureRes = await fetch(`/api/orders/${data.orderID}/capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount })
+        });
+        const captureData = await captureRes.json();
+        showSuccess(captureData);
+      } catch (err) {
+        showError('Capture Error', err.message);
+      }
+    },
+    onError: function(err) {
+      showError('PayPal Error', err.toString());
+    },
+    style: { shape: 'rect', color: 'blue', layout: 'vertical', label: 'pay' }
+  }).render('#paypal-button-container');
+}
+{% endif %}
+
+// ── UI Helpers ────────────────────────────────────────────────────────────────
+
+function showSuccess(data) {
+  document.getElementById('success-alert').classList.remove('hidden');
+  document.getElementById('success-text').textContent = data.message;
+
+  if (data.overdraft) {
+    const odInfo = document.getElementById('overdraft-activated-info');
+    const odDetails = document.getElementById('overdraft-details');
+    odInfo.classList.remove('hidden');
+    odDetails.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase">Amount Covered</div>
+          <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--warning)">$${data.overdraft.amount_covered.toFixed(2)}</div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase">Total Owed</div>
+          <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">$${data.overdraft.total_owed.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="margin-top:var(--space-md);font-size:0.8rem;color:var(--text-muted)">
+        Status: <code>${data.overdraft.status}</code> —
+        Payout Batch: <code>${data.overdraft.payout_batch_id}</code>
+      </div>
+    `;
+    showToast('⚡ Overdraft buffer activated! $' + data.overdraft.amount_covered.toFixed(2) + ' covered.', 'warning');
+  } else {
+    showToast('✅ Payment successful!', 'success');
+  }
+
+  if (data.wallet_balance_after !== undefined) {
+    walletBalance = data.wallet_balance_after;
+    document.getElementById('sidebar-balance').textContent = '$' + walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    updateGapDetector();
+  }
+}
+
+function showError(title, message) {
+  document.getElementById('error-alert').classList.remove('hidden');
+  document.getElementById('error-title').textContent = title;
+  document.getElementById('error-text').textContent = message;
+  showToast('❌ ' + message, 'error');
+}
+
+function hideAlerts() {
+  document.getElementById('success-alert').classList.add('hidden');
+  document.getElementById('error-alert').classList.add('hidden');
+  document.getElementById('overdraft-activated-info').classList.add('hidden');
+  clearStatusBanner();
+}
+
+function showStatusBanner(type, message) {
+  let banner = document.getElementById('payout-status-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'payout-status-banner';
+    banner.style.cssText = 'margin-top:var(--space-md);padding:var(--space-md);border-radius:var(--radius-sm);font-size:0.875rem;font-weight:600;text-align:center;transition:all 0.3s';
+    const btn = document.getElementById('checkout-btn');
+    if (btn) btn.parentNode.insertBefore(banner, btn.nextSibling);
+  }
+  if (type === 'payout-pending') {
+    banner.style.background = 'rgba(255,196,57,0.12)';
+    banner.style.border = '1px solid rgba(255,196,57,0.4)';
+    banner.style.color = 'var(--warning)';
+  } else {
+    banner.style.background = 'rgba(0,212,170,0.1)';
+    banner.style.border = '1px solid rgba(0,212,170,0.4)';
+    banner.style.color = 'var(--success)';
+  }
+  banner.textContent = message;
+}
+
+function clearStatusBanner() {
+  const b = document.getElementById('payout-status-banner');
+  if (b) b.remove();
+}
+
+function setButtonLoading(btn, text) {
+  if (!btn) return;
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+  btn.textContent = text || 'Processing…';
+}
+
+function resetButton(btn) {
+  if (!btn) return;
+  btn.classList.remove('btn-loading');
+  btn.disabled = false;
+  btn.textContent = '⚡ Process with PayFlow Overdraft';
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+// Initialize gap detector with seeded value, then immediately fetch live balance
+updateGapDetector();
+fetchLiveBalance();
+</script>
+{% endblock %}

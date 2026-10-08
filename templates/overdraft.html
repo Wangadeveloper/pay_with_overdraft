@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Overdraft Status{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">💳 Overdraft <span>Management</span></h1>
+  <p class="page-subtitle">Monitor your micro-credit buffer, repayment schedule, and risk profile</p>
+</div>
+
+<!-- Hero Stats -->
+<div class="stats-grid" style="margin-bottom:var(--space-xl)">
+  <div class="overdraft-hero">
+    <div class="card-title">💳 Your Overdraft Limit</div>
+    <div class="hero-amount">${{ "%.2f"|format(overdraft_limit) }}</div>
+    <div class="card-meta mt-sm">min($150, 25% × ${{ "%.2f"|format(thirty_day_income) }})</div>
+  </div>
+
+  <div class="card" style="border-color:rgba(0,212,170,0.2)">
+    <div class="card-title">📈 30-Day Income</div>
+    <div class="card-value success">${{ "%.2f"|format(thirty_day_income) }}</div>
+    <div class="card-meta">Basis for limit calculation</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Risk Tier</div>
+    <div class="card-value" style="font-size:1.5rem">{{ risk_tier }}</div>
+    <div class="badge {% if risk_tier == 'LOW' %}badge-success{% elif risk_tier == 'MEDIUM' %}badge-warning{% else %}badge-danger{% endif %} mt-sm">
+      {{ risk_tier }} RISK
+    </div>
+    <div class="card-meta mt-sm">
+      {% if risk_tier == 'LOW' %}
+      ✓ Excellent standing. Instant approvals.
+      {% elif risk_tier == 'MEDIUM' %}
+      ⚡ Build more income history for better rates.
+      {% else %}
+      ⚠ Limited access. Increase consistent income.
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 Flat Fee</div>
+    <div class="card-value warning">${{ "%.2f"|format(flat_fee) }}</div>
+    <div class="card-meta">Per overdraft event — zero interest</div>
+    <div class="badge badge-success mt-sm">No compound interest</div>
+  </div>
+</div>
+
+<div class="grid-sidebar">
+  <!-- Left: Active Overdraft + History -->
+  <div>
+    {% if active_overdraft %}
+    <!-- Active Overdraft Card -->
+    <div class="card mb-lg" style="border-color:rgba(255,196,57,0.3)">
+      <div class="flex items-center justify-between mb-lg">
+        <div class="card-title" style="margin-bottom:0">⚡ Active Overdraft Buffer</div>
+        <span class="badge badge-warning"><span class="badge-dot"></span> ACTIVE</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-md);margin-bottom:var(--space-lg)">
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase">Borrowed</div>
+          <div style="font-family:'Outfit',sans-serif;font-size:1.5rem;font-weight:800;color:var(--warning)">${{ "%.2f"|format(active_overdraft.amount_covered) }}</div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase">Fee</div>
+          <div style="font-family:'Outfit',sans-serif;font-size:1.5rem;font-weight:800;color:var(--text-primary)">${{ "%.2f"|format(active_overdraft.flat_fee) }}</div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase">Total Owed</div>
+          <div style="font-family:'Outfit',sans-serif;font-size:1.5rem;font-weight:800;color:var(--danger)">${{ "%.2f"|format(active_overdraft.total_owed) }}</div>
+        </div>
+      </div>
+
+      <!-- Repayment Progress Bar -->
+      <div class="card-title">Repayment Progress</div>
+      <div class="progress-bar">
+        <div class="progress-fill warning" style="width:0%" id="repay-progress"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-top:4px">
+        <span>$0 repaid</span>
+        <span>${{ "%.2f"|format(active_overdraft.total_owed) }} total</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Due Date -->
+      <div class="flex items-center justify-between">
+        <div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Due Date</div>
+          <div style="font-weight:700;color:var(--text-primary)">{{ active_overdraft.due_date.strftime('%B %d, %Y') }}</div>
+        </div>
+        {% if active_overdraft.days_overdue > 0 %}
+        <span class="badge badge-danger">{{ active_overdraft.days_overdue }} days overdue</span>
+        {% else %}
+        <span class="badge badge-success">On Track</span>
+        {% endif %}
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="flex gap-sm">
+        <button class="btn btn-gold" style="flex:1" onclick="simulateWebhookRepayment()">
+          ⚡ Simulate Auto-Repayment
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="manualRepay()">
+          💳 Manual Repay
+        </button>
+      </div>
+
+      <!-- Payout ID -->
+      {% if active_overdraft.payout_batch_id %}
+      <div style="margin-top:var(--space-md);padding:var(--space-sm) var(--space-md);background:rgba(255,255,255,0.03);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--text-muted)">
+        PayPal Payout Batch: <code style="color:var(--info)">{{ active_overdraft.payout_batch_id }}</code>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card mb-lg" style="border-color:rgba(0,212,170,0.2);text-align:center;padding:var(--space-2xl)">
+      <div style="font-size:3rem;margin-bottom:var(--space-md)">✅</div>
+      <div style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:700;color:var(--success)">Account Clear</div>
+      <div style="font-size:0.875rem;color:var(--text-muted);margin-top:var(--space-sm)">
+        No active overdraft. Your full limit of <strong style="color:var(--success)">${{ "%.2f"|format(overdraft_limit) }}</strong> is available.
+      </div>
+      <a href="/checkout" class="btn btn-primary mt-lg">🛒 Try a Checkout</a>
+    </div>
+    {% endif %}
+
+    <!-- Overdraft History Table -->
+    {% if overdraft_history %}
+    <div class="card">
+      <div class="card-title">📋 Overdraft History</div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Amount</th>
+              <th>Total Owed</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Repaid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for od in overdraft_history %}
+            <tr>
+              <td style="color:var(--text-muted)">#{{ od.id }}</td>
+              <td class="tx-amount">${{ "%.2f"|format(od.amount_covered) }}</td>
+              <td class="tx-amount {% if od.status == 'ACTIVE' %}tx-out{% else %}text-muted{% endif %}">${{ "%.2f"|format(od.total_owed) }}</td>
+              <td>
+                <span class="badge {% if od.status == 'REPAID' %}badge-success{% elif od.status == 'ACTIVE' %}badge-warning{% else %}badge-danger{% endif %}">
+                  {{ od.status }}
+                </span>
+              </td>
+              <td style="color:var(--text-muted);font-size:0.78rem">{{ od.created_at.strftime('%b %d, %H:%M') }}</td>
+              <td style="color:var(--text-muted);font-size:0.78rem">
+                {{ od.repaid_at.strftime('%b %d, %H:%M') if od.repaid_at else '—' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Policy & Risk Info -->
+  <div>
+    <!-- Risk Tier Breakdown -->
+    <div class="card mb-lg">
+      <div class="card-title">📊 Risk Tier System</div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+        <div style="padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.2)" class="{% if risk_tier == 'LOW' %}glow-green{% endif %}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;color:var(--success)">🟢 LOW RISK</span>
+            {% if risk_tier == 'LOW' %}<span class="badge badge-success">YOU ARE HERE</span>{% endif %}
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">30-day income ≥ $500 · Up to $150 limit · Instant approval</div>
+        </div>
+        <div style="padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(255,196,57,0.08);border:1px solid rgba(255,196,57,0.2)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;color:var(--warning)">🟡 MEDIUM RISK</span>
+            {% if risk_tier == 'MEDIUM' %}<span class="badge badge-warning">YOU ARE HERE</span>{% endif %}
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">30-day income $150–$499 · Up to $75 limit</div>
+        </div>
+        <div style="padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.2)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;color:var(--danger)">🔴 HIGH RISK</span>
+            {% if risk_tier == 'HIGH' %}<span class="badge badge-danger">YOU ARE HERE</span>{% endif %}
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">30-day income < $150 · Limited access · Build history first</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Social Protection Policy -->
+    <div class="card mb-lg">
+      <div class="card-title">🛡️ Responsible Credit Policy</div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+        <div style="display:flex;gap:var(--space-md);align-items:flex-start">
+          <span style="font-size:1.25rem">✅</span>
+          <div>
+            <div style="font-weight:600;font-size:0.875rem">Zero Interest</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">Only a flat $0.50 fee per overdraft event</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--space-md);align-items:flex-start">
+          <span style="font-size:1.25rem">🔒</span>
+          <div>
+            <div style="font-weight:600;font-size:0.875rem">Hard Cap at $150</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">Prevents over-borrowing and debt traps</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--space-md);align-items:flex-start">
+          <span style="font-size:1.25rem">⚡</span>
+          <div>
+            <div style="font-weight:600;font-size:0.875rem">Auto-Repayment</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">Cleared automatically on next incoming payment</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--space-md);align-items:flex-start">
+          <span style="font-size:1.25rem">❌</span>
+          <div>
+            <div style="font-weight:600;font-size:0.875rem">No Penalty Escalation</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">Missed 30 days? Line paused, not penalized</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulate Income -->
+    <div class="card">
+      <div class="card-title">⚡ Sandbox Testing</div>
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-md)">
+        Simulate PayPal payments to test the auto-repayment webhook flow.
+      </div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+        <button class="btn btn-success btn-sm" onclick="sendIncome(25)">+$25</button>
+        <button class="btn btn-success btn-sm" onclick="sendIncome(50)">+$50</button>
+        <button class="btn btn-success btn-sm" onclick="sendIncome(100)">+$100</button>
+      </div>
+      <div id="income-result" class="hidden" style="margin-top:var(--space-md)"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function simulateWebhookRepayment() {
+  showToast('Firing PAYMENT.CAPTURE.COMPLETED webhook...', 'info');
+  try {
+    const res = await fetch('/webhooks/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 100 })
+    });
+    const data = await res.json();
+    showToast(data.message, 'success');
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    showToast('Webhook simulation failed', 'error');
+  }
+}
+
+async function manualRepay() {
+  showToast('Processing manual repayment...', 'info');
+  try {
+    const res = await fetch('/api/overdraft/repay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'error'); return; }
+    showToast(data.message, 'success');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    showToast('Repayment failed', 'error');
+  }
+}
+
+async function sendIncome(amount) {
+  showToast(`Receiving $${amount}...`, 'info');
+  try {
+    const res = await fetch('/api/overdraft/simulate-income', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const data = await res.json();
+    document.getElementById('income-result').classList.remove('hidden');
+    document.getElementById('income-result').innerHTML = `
+      <div class="alert alert-success" style="margin:0">
+        <div class="alert-icon">✅</div>
+        <div class="alert-text">${data.message}</div>
+      </div>
+    `;
+    showToast(data.message, 'success');
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    showToast('Error', 'error');
+  }
+}
+</script>
+{% endblock %}

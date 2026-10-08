@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant — PayFlow{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🤖 PayFlow <span>AI Assistant</span></h1>
+  <p class="page-subtitle">Ask me anything about your overdraft limit, repayment schedule, risk tier, and more</p>
+</div>
+
+<div class="grid-sidebar">
+  <!-- Chat Panel -->
+  <div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;height:calc(100vh - 250px);min-height:500px">
+
+    <!-- Chat Header -->
+    <div style="padding:var(--space-lg);border-bottom:1px solid var(--border-glass);display:flex;align-items:center;gap:var(--space-md)">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--grad-brand);display:flex;align-items:center;justify-content:center;font-size:1.3rem;box-shadow:var(--shadow-glow-blue)">🤖</div>
+      <div>
+        <div style="font-weight:700;font-family:'Outfit',sans-serif">PayFlow Assistant</div>
+        <div style="font-size:0.75rem;color:var(--success);display:flex;align-items:center;gap:4px">
+          <span style="width:6px;height:6px;background:var(--success);border-radius:50%;display:inline-block;animation:pulse 2s infinite"></span>
+          Online — powered by PayFlow AI
+        </div>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn btn-ghost btn-sm" onclick="clearChat()">🗑 Clear</button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chat-messages">
+      <!-- Welcome message -->
+      <div class="chat-message bot">
+        <div class="message-bubble">
+          👋 Hi <strong>{{ user.name if user else 'there' }}</strong>! I'm your PayFlow assistant.<br><br>
+          I can help you with:<br>
+          • 💳 Overdraft limit & availability<br>
+          • 📅 Repayment schedule & due dates<br>
+          • 💰 Wallet balance & income info<br>
+          • 📊 Risk tier & scoring explanation<br>
+          • 💡 Fee structure & policies<br><br>
+          What would you like to know?
+        </div>
+        <div class="message-time">Just now</div>
+      </div>
+    </div>
+
+    <!-- Suggestions Bar -->
+    <div class="suggestions-bar" id="suggestions-bar">
+      <div class="suggestion-chip" onclick="sendSuggestion('What is my overdraft limit?')">💳 What's my limit?</div>
+      <div class="suggestion-chip" onclick="sendSuggestion('When is my repayment due?')">📅 Repayment due?</div>
+      <div class="suggestion-chip" onclick="sendSuggestion('Check my wallet balance')">💰 My balance</div>
+      <div class="suggestion-chip" onclick="sendSuggestion('What are the fees?')">💡 Fees?</div>
+      <div class="suggestion-chip" onclick="sendSuggestion('How does PayFlow work?')">🔄 How it works</div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-area">
+      <textarea
+        id="chat-input"
+        class="chat-input"
+        placeholder="Ask about your overdraft, balance, repayment..."
+        rows="1"
+        onkeydown="handleKeyDown(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="btn btn-primary" id="send-btn" onclick="sendMessage()" style="border-radius:var(--radius-lg);padding:14px 18px">
+        ➤
+      </button>
+    </div>
+  </div>
+
+  <!-- Right: Info Panel -->
+  <div>
+    <!-- Quick Stats -->
+    <div class="card mb-lg">
+      <div class="card-title">📊 Your Profile</div>
+      {% if user %}
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Name</span>
+          <span style="font-weight:600">{{ user.name }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Email</span>
+          <span style="font-weight:600;font-size:0.8rem">{{ user.paypal_email }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem">
+          <span style="color:var(--text-muted)">Risk Tier</span>
+          <span class="badge badge-success">LOW</span>
+        </div>
+      </div>
+      {% else %}
+      <div style="color:var(--text-muted);font-size:0.875rem">Profile not loaded</div>
+      {% endif %}
+    </div>
+
+    <!-- Sample Questions -->
+    <div class="card mb-lg">
+      <div class="card-title">💬 Sample Questions</div>
+      <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
+        {% set questions = [
+          "What is my overdraft limit?",
+          "When is my repayment due?",
+          "Check my wallet balance",
+          "What are the fees?",
+          "What is my risk tier?",
+          "How does auto-repayment work?",
+          "What happens if I default?",
+          "How is my income calculated?",
+          "How does PayFlow work?"
+        ] %}
+        {% for q in questions %}
+        <div class="suggestion-chip" onclick="sendSuggestion('{{ q }}')" style="width:100%;border-radius:var(--radius-sm)">
+          {{ q }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- About the AI -->
+    <div class="card">
+      <div class="card-title">ℹ️ About the Assistant</div>
+      <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.7">
+        This AI assistant is powered by PayFlow's contextual rule engine, built specifically for gig economy workers.<br><br>
+        It has real-time access to your:<br>
+        • Account balance & overdraft status<br>
+        • 30-day income history<br>
+        • Repayment schedule<br>
+        • Risk scoring details<br><br>
+        <em>No external API key needed — privacy-first design.</em>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentSuggestions = [];
+
+function formatTime() {
+  return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function addMessage(text, role = 'bot', time = null) {
+  const messagesEl = document.getElementById('chat-messages');
+  const msgEl = document.createElement('div');
+  msgEl.className = `chat-message ${role}`;
+
+  // Convert markdown-like formatting
+  const formatted = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+
+  msgEl.innerHTML = `
+    <div class="message-bubble">${formatted}</div>
+    <div class="message-time">${time || formatTime()}</div>
+  `;
+
+  messagesEl.appendChild(msgEl);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return msgEl;
+}
+
+function addTypingIndicator() {
+  const messagesEl = document.getElementById('chat-messages');
+  const typing = document.createElement('div');
+  typing.className = 'chat-message bot';
+  typing.id = 'typing-indicator';
+  typing.innerHTML = `
+    <div class="typing-indicator">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+  `;
+  messagesEl.appendChild(typing);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return typing;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function updateSuggestions(suggestions) {
+  const bar = document.getElementById('suggestions-bar');
+  bar.innerHTML = '';
+  suggestions.forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'suggestion-chip';
+    chip.textContent = s;
+    chip.onclick = () => sendSuggestion(s);
+    bar.appendChild(chip);
+  });
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  addMessage(message, 'user');
+
+  const typing = addTypingIndicator();
+
+  try {
+    // Artificial delay for realism
+    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+
+    const res = await fetch('/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+
+    removeTypingIndicator();
+
+    if (data.message) {
+      addMessage(data.message, 'bot');
+      if (data.suggestions && data.suggestions.length) {
+        updateSuggestions(data.suggestions);
+      }
+    } else {
+      addMessage("I couldn't process that. Please try again.", 'bot');
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    addMessage("Connection error. Please try again.", 'bot');
+  }
+}
+
+function sendSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+function handleKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function clearChat() {
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = '';
+  addMessage("Chat cleared. How can I help you? 👋", 'bot');
+  updateSuggestions(['What is my overdraft limit?', 'Check my balance', 'How does PayFlow work?']);
+}
+</script>
+{% endblock %}

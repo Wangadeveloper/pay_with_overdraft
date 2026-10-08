@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}PayFlow Overdraft{% endblock %} | Fuliza for PayPal</title>
+  <meta name="description" content="PayFlow Overdraft — Instant credit buffer for gig workers when your PayPal wallet falls short. Inspired by Fuliza, built for the global gig economy." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- PayPal JS SDK (loaded per-page via block) -->
+  {% block head_extra %}{% endblock %}
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+
+<!-- Animated Background -->
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- Navigation -->
+<nav class="navbar" id="navbar">
+  <div class="nav-container">
+    <a href="/dashboard" class="nav-brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-text">
+        <span class="brand-name">PayFlow</span>
+        <span class="brand-sub">Overdraft</span>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <a href="/checkout" class="nav-link {% if request.path == '/checkout' %}active{% endif %}">
+        <span class="nav-icon">🛒</span> Checkout
+      </a>
+      <a href="/overdraft" class="nav-link {% if request.path == '/overdraft' %}active{% endif %}">
+        <span class="nav-icon">💳</span> Overdraft
+      </a>
+      <a href="/ai" class="nav-link {% if request.path == '/ai' %}active{% endif %}">
+        <span class="nav-icon">🤖</span> AI Assistant
+      </a>
+    </div>
+
+    <div class="nav-user">
+      <div class="user-badge">
+        <div class="user-avatar">PW</div>
+        <div class="user-info">
+          <span class="user-name">Peter Wanga</span>
+          <span class="user-tier risk-low">LOW RISK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Toast Notifications -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <span>⚡ PayFlow Overdraft</span>
+    <span>•</span>
+    <span>Fuliza for PayPal — DevPost Hackathon 2026</span>
+    <span>•</span>
+    <span>Financial Inclusion Track</span>
+    <span>•</span>
+    <span>🌍 Powered by PayPal Sandbox</span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
