@@ -202,53 +202,116 @@ class PayPalClient:
 
     def get_account_balance(self, currency: str = 'USD') -> dict:
         """
-        Fetch current account balance via Balances API v1.
+        Fetch current PayFlow Funder Pool balance via PayPal Balances API v1.
 
-        Uses the client-credentials (business) OAuth token, so this returns
-        the BUSINESS sandbox account's balance.  For the demo the personal
-        buyer's sandbox account also starts at $5,000, so the same figure
-        is displayed as the buyer's wallet balance.
-
-        Returns a dict that includes:
-          - 'available_usd'  float — the primary available balance in USD
-          - 'total_usd'      float — the total (including withheld) balance
-          - 'currency'       str   — the queried currency code
-          - 'raw'            dict  — the raw API response
+        Queries the BUSINESS sandbox account (sb-qjdsl53206694@business.example.com)
+        which is the PayFlow liquidity pool — its available balance is the
+        funding source for all overdraft payouts disbursed to buyers.
+        Returns diagnostic details including HTTP status code, available USD, account ID, and raw payload.
         """
         url = f"{self.base_url}/v1/reporting/balances"
         params = {
             'as_of_time': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S+0000'),
             'currency_code': currency
         }
-        headers = {
-            'Authorization': f'Bearer {self.get_access_token()}',
-        }
-        resp = requests.get(url, params=params, headers=headers, timeout=15)
-        resp.raise_for_status()
-        raw = resp.json()
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.get_access_token()}',
+                'Accept': 'application/json',
+                'PayPal-Enforce-ISO8601-Format': 'true',
+            }
+            resp = requests.get(url, params=params, headers=headers, timeout=15)
+            status_code = resp.status_code
+            debug_id = resp.headers.get('PayPal-Debug-Id', '')
+            
+            if not resp.ok:
+                return {
+                    'success': False,
+                    'status_code': status_code,
+                    'debug_id': debug_id,
+                    'error': f"PayPal API returned status {status_code}",
+                    'raw': resp.json() if resp.headers.get('Content-Type', '').startswith('application/json') else resp.text[:500],
+                    'available_usd': 0.0,
+                    'total_usd': 0.0,
+                    'account_id': '',
+                    'currency': currency
+                }
 
-        # Parse the balances list for the requested currency
-        balances = raw.get('balances', [])
-        available_usd = 0.0
-        total_usd = 0.0
-        for entry in balances:
-            if entry.get('currency_code', entry.get('currency', '')) == currency:
-                available_usd = float(
-                    entry.get('available_balance', {}).get('value', 0) or
-                    entry.get('available_amount', {}).get('value', 0) or 0
-                )
-                total_usd = float(
-                    entry.get('total_balance', {}).get('value', 0) or
-                    entry.get('total_amount', {}).get('value', 0) or 0
-                )
-                break
+            raw = resp.json()
+            balances = raw.get('balances', [])
+            available_usd = 0.0
+            total_usd = 0.0
+            account_id = raw.get('account_id', '')
 
-        return {
-            'available_usd': available_usd,
-            'total_usd': total_usd,
-            'currency': currency,
-            'raw': raw
-        }
+            for entry in balances:
+                curr = entry.get('currency_code') or entry.get('currency') or ''
+                if curr == currency or not curr:
+                    avail_dict = entry.get('available_balance') or entry.get('available_amount') or {}
+                    total_dict = entry.get('total_balance') or entry.get('total_amount') or {}
+                    available_usd = float(avail_dict.get('value', 0) or 0)
+                    total_usd = float(total_dict.get('value', 0) or 0)
+                    break
+
+            return {
+                'success': True,
+                'status_code': status_code,
+                'debug_id': debug_id,
+                'available_usd': available_usd,
+                'total_usd': total_usd,
+                'currency': currency,
+                'account_id': account_id,
+                'raw': raw
+            }
+        except Exception as exc:
+            return {
+                'success': False,
+                'status_code': 500,
+                'debug_id': '',
+                'error': str(exc),
+                'available_usd': 0.0,
+                'total_usd': 0.0,
+                'account_id': '',
+                'currency': currency,
+                'raw': {}
+            }
+
+    def get_buyer_balance(self, buyer_email: str = None, currency: str = 'USD') -> dict:
+        """
+        Fetch / query current buyer balance for sb-tfjr4353268252@personal.example.com via PayPal API.
+        Attempts to query reporting transactions or account balance.
+        """
+        if not buyer_email:
+            buyer_email = current_app.config.get('PAYPAL_BUYER_EMAIL', 'sb-tfjr4353268252@personal.example.com')
+
+        try:
+            # Query recent transactions for the buyer email via Transaction Search API
+            tx_data = self.get_transaction_history()
+            details = tx_data.get('transaction_details', [])
+            net_balance = 0.0
+            for tx in details:
+                tx_info = tx.get('transaction_info', {})
+                amount_info = tx_info.get('transaction_amount', {})
+                val = float(amount_info.get('value', 0.0))
+                payer_info = tx.get('payer_info', {})
+                payer_email = payer_info.get('email_address', '')
+                if payer_email.lower() == buyer_email.lower():
+                    net_balance += val
+
+            return {
+                'buyer_email': buyer_email,
+                'available_usd': max(0.0, net_balance),
+                'currency': currency,
+                'source': 'paypal_transaction_search_api'
+            }
+        except Exception as exc:
+            current_app.logger.warning(f"Could not fetch buyer balance directly from PayPal API for {buyer_email}: {exc}")
+            return {
+                'buyer_email': buyer_email,
+                'available_usd': None,
+                'currency': currency,
+                'source': 'error',
+                'error': str(exc)
+            }
 
     # ─── Webhook Verification ──────────────────────────────────────────────────
 

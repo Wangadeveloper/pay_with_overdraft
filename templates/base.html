@@ -55,16 +55,77 @@
     </div>
 
     <div class="nav-user">
-      <div class="user-badge">
-        <div class="user-avatar">PW</div>
-        <div class="user-info">
-          <span class="user-name">Peter Wanga</span>
-          <span class="user-tier risk-low">LOW RISK</span>
+      <button
+        onclick="openSandboxSettingsModal()"
+        class="user-badge"
+        style="background:rgba(0,112,186,0.12);border:1px solid rgba(0,112,186,0.3);cursor:pointer;padding:6px 14px;border-radius:30px;transition:all 0.2s"
+        title="Click to configure your personal PayPal Sandbox email"
+      >
+        <div class="user-avatar" style="background:var(--info);color:#fff">⚙️</div>
+        <div class="user-info" style="text-align:left">
+          <span class="user-name" id="nav-user-email">Configure Sandbox Email</span>
+          <span class="user-tier risk-low">⚡ PAYPAL SANDBOX</span>
         </div>
-      </div>
+      </button>
     </div>
   </div>
 </nav>
+
+<!-- PayPal Sandbox Account Settings Modal -->
+<div id="sandbox-settings-modal" class="modal-overlay">
+  <div class="modal-card" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-icon-badge" style="background:rgba(0,112,186,0.15);color:var(--info)">⚙️</div>
+      <div>
+        <div class="modal-title">PayPal Sandbox Account Binding</div>
+        <div class="modal-subtitle">Connect your PayPal Sandbox account</div>
+      </div>
+    </div>
+
+    <div style="margin:var(--space-md) 0;font-size:0.825rem;color:var(--text-secondary);line-height:1.5">
+      💡 Bound to your <strong>PayPal Sandbox Account</strong> (<code style="color:var(--info)">sb-qjdsl53206694@business.example.com</code>). Live balances are fetched directly via PayPal's REST Balances API!
+    </div>
+
+    <div class="form-group" style="margin-bottom:var(--space-md)">
+      <label class="form-label">PayPal Sandbox Account Email</label>
+      <input
+        type="email"
+        id="settings-buyer-email"
+        class="form-input"
+        placeholder="e.g. sb-qjdsl53206694@business.example.com"
+      />
+      <div style="margin-top:4px;font-size:0.75rem;color:var(--text-muted)">
+        PayPal Sandbox account email (authenticated with Client ID &amp; Secret)
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:var(--space-md)">
+      <label class="form-label">Account Display Name</label>
+      <input
+        type="text"
+        id="settings-buyer-name"
+        class="form-input"
+        placeholder="e.g. John Doe"
+      />
+    </div>
+
+    <div class="form-group" style="margin-bottom:var(--space-lg)">
+      <label class="form-label">Purchasing Wallet Balance Status</label>
+      <div style="background:rgba(0,212,170,0.08);border:1px solid rgba(0,212,170,0.25);padding:10px 14px;border-radius:10px;font-size:0.825rem;color:var(--success)">
+        ⚡ <strong>Live API Balance:</strong> Balance for <code style="color:var(--info)">sb-qjdsl53206694@business.example.com</code> is fetched directly from PayPal Balances API (GET /v1/reporting/balances).
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSandboxSettingsModal()">
+        Cancel
+      </button>
+      <button class="btn btn-primary" onclick="saveSandboxSettings()">
+        💾 Save &amp; Connect Account
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- Main Content -->
 <main class="main-content">

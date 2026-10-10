@@ -128,7 +128,7 @@ def _seed_demo_data(app):
         db.session.commit()
         return
 
-    buyer_email = app.config.get('PAYPAL_BUYER_EMAIL', 'sb-tfjr4353268252@personal.example.com')
+    buyer_email = app.config.get('PAYPAL_BUYER_EMAIL', 'sb-qjdsl53206694@business.example.com')
     buyer_name = app.config.get('PAYPAL_BUYER_NAME', 'John Doe')
     buyer_account_id = app.config.get('PAYPAL_BUYER_ACCOUNT_ID', 'RTFSG6HD676ML')
 
@@ -138,7 +138,7 @@ def _seed_demo_data(app):
         paypal_account_id=buyer_account_id,
         risk_tier='LOW',
         overdraft_limit=500.0,
-        simulated_balance=5000.00   # Matches real PayPal sandbox account starting balance
+        simulated_balance=1130.65   # Matches real PayPal sandbox account balance ($1,130.65)
     )
     db.session.add(user)
     db.session.flush()

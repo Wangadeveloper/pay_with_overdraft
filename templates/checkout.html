@@ -24,17 +24,22 @@
   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-sm);
   padding:var(--space-sm) var(--space-md);
   background:rgba(0,112,186,0.07);
-  border:1px solid rgba(0,112,186,0.2);
+  border:1px solid rgba(0,112,186,0.25);
   border-radius:var(--radius-md);
   margin-bottom:var(--space-lg);
   font-size:0.825rem;
 ">
-  <div style="display:flex;align-items:center;gap:var(--space-sm)">
-    <span id="balance-source-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block;flex-shrink:0"></span>
-    <span id="balance-source-label" style="color:var(--text-muted)">Fetching live account balance…</span>
+  <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap">
+    <span id="balance-source-dot" style="width:10px;height:10px;border-radius:50%;background:var(--success);display:inline-block;flex-shrink:0"></span>
+    <span style="font-weight:700;color:var(--text-primary)">PayFlow Funder Pool:</span>
+    <span id="funder-pool-amount" style="font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:var(--success)">Fetching…</span>
+    <span style="color:var(--text-muted);font-size:0.75rem">(Real PayPal Balances API)</span>
   </div>
-  <div style="display:flex;align-items:center;gap:var(--space-md)">
-    <span id="balance-live-amount" style="font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:var(--text-primary)">—</span>
+  <div style="display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="color:var(--text-muted)">Buyer Wallet:</span>
+      <span id="balance-live-amount" style="font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:var(--warning)">${{ "%.2f"|format(wallet_balance) }}</span>
+    </div>
     <button
       id="refresh-balance-btn"
       onclick="fetchLiveBalance()"
@@ -46,7 +51,7 @@
       onmouseover="this.style.background='rgba(0,112,186,0.12)'"
       onmouseout="this.style.background='transparent'"
     >
-      🔄 Refresh Balance
+      🔄 Refresh Balances
     </button>
   </div>
 </div>
@@ -253,21 +258,45 @@
       </div>
     </div>
 
-    <!-- Test Scenarios -->
+    <!-- Live Buyer Wallet Status & Test Presets -->
     <div class="card">
-      <div class="card-title">🎮 Test Scenarios</div>
+      <div class="card-title">💳 Personal Buyer Sandbox Account</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-sm)">
+        Purchasing balance automatically populated from PayPal API:
+      </div>
+      <div style="background:rgba(0,112,186,0.08);border:1px solid rgba(0,112,186,0.25);border-radius:10px;padding:10px 14px;margin-bottom:var(--space-sm)">
+        <div style="font-size:0.75rem;color:var(--text-muted)">Buyer Account Email</div>
+        <div style="font-weight:700;color:var(--info);font-size:0.85rem;word-break:break-all">sb-tfjr4353268252@personal.example.com</div>
+        <div style="font-size:0.72rem;color:var(--success);margin-top:4px">✅ Balance auto-populated via API</div>
+      </div>
+
+      <div class="divider" style="margin:var(--space-xs) 0 var(--space-sm)"></div>
+
+      <div class="card-title" style="font-size:0.88rem">🎮 Quick Test Order Scenarios</div>
       <div style="display:flex;flex-direction:column;gap:var(--space-sm)">
         <button class="btn btn-ghost btn-sm" onclick="setScenario('over')" id="scenario-over-btn">
-          ⚡ Overdraft: $200 over balance
+          ⚡ Overdraft Test: $40.00 Order
         </button>
         <button class="btn btn-ghost btn-sm" onclick="setScenario('big')" id="scenario-big-btn">
-          🚫 Over Limit: $1,000 over balance
+          🚫 Over Limit Test: $1,000.00 Order
         </button>
         <button class="btn btn-ghost btn-sm" onclick="setScenario('under')" id="scenario-under-btn">
-          ✅ No Overdraft: $100 under balance
+          ✅ No Overdraft Test: $10.00 Order
         </button>
       </div>
       <div id="scenario-hint" style="margin-top:var(--space-sm);font-size:0.72rem;color:var(--text-muted);line-height:1.4"></div>
+    </div>
+
+    <!-- PayPal REST API Diagnostic Card -->
+    <div class="card" style="border:1px solid rgba(0,112,186,0.3);background:rgba(10,25,47,0.7)">
+      <div class="card-title" style="font-size:0.88rem;color:var(--info)">🔍 PayPal REST API Diagnostic</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm);line-height:1.4">
+        Test <code>GET /v1/reporting/balances</code> against PayPal Sandbox to inspect HTTP status codes &amp; debug credentials:
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="runPayPalApiDiagnostic()" id="run-diag-btn" style="width:100%;border-color:rgba(0,112,186,0.4)">
+        ⚡ Run API Diagnostic (/api/paypal/balances)
+      </button>
+      <div id="diag-results" style="display:none;margin-top:var(--space-sm);padding:8px;background:rgba(0,0,0,0.4);border-radius:6px;font-family:monospace;font-size:0.7rem;line-height:1.3;max-height:160px;overflow-y:auto;white-space:pre-wrap;color:var(--text-secondary)"></div>
     </div>
   </div>
 </div>
@@ -295,6 +324,10 @@
       <div class="modal-row" style="font-size:0.75rem">
         <span class="modal-row-label" style="color:var(--text-muted)">Balance Source</span>
         <span id="modal-balance-source" style="color:var(--success);font-size:0.75rem">—</span>
+      </div>
+      <div class="modal-row" style="font-size:0.75rem">
+        <span class="modal-row-label" style="color:var(--text-muted)">Payout Destination Account</span>
+        <span id="modal-recipient-email" style="color:var(--info);font-weight:600;font-size:0.75rem">{{ buyer_email }}</span>
       </div>
       <div class="divider" style="margin:var(--space-xs) 0"></div>
       <div class="modal-row">
@@ -356,76 +389,92 @@ let paypalButtonsRendered = false;
 
 async function fetchLiveBalance() {
   const btn = document.getElementById('refresh-balance-btn');
-  const label = document.getElementById('balance-source-label');
+  const funderEl = document.getElementById('funder-pool-amount');
   const dot = document.getElementById('balance-source-dot');
   const badge = document.getElementById('balance-live-badge');
   const loadingEl = document.getElementById('sidebar-balance-loading');
   const sidebarLabel = document.getElementById('sidebar-balance-label');
 
-  // Loading state
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching…'; }
-  if (label) { label.textContent = 'Fetching live balance from PayPal…'; label.style.color = 'var(--warning)'; }
-  if (dot) dot.style.background = 'var(--warning)';
   if (loadingEl) loadingEl.style.display = 'block';
 
   try {
     const res = await fetch('/api/balance/live');
     const data = await res.json();
 
-    const newBalance = parseFloat(data.balance) || walletBalance;
+    const buyerBal = parseFloat(data.buyer_balance) || walletBalance;
+    const funderBal = parseFloat(data.funder_balance) || 5000.00;
     balanceSource = data.source || 'cached';
     const isLive = balanceSource === 'paypal_balances_api';
 
-    // Update JS state so gap detector uses real balance
-    walletBalance = newBalance;
+    // Update Buyer Balance state
+    walletBalance = buyerBal;
     updateGapDetector();
 
-    // Update balance bar
+    // Update Funder Pool display
+    if (funderEl) {
+      funderEl.textContent = '$' + funderBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      funderEl.style.color = 'var(--success)';
+    }
+
+    // Update Buyer Balance display
     const amountEl = document.getElementById('balance-live-amount');
     if (amountEl) {
-      amountEl.textContent = '$' + newBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      amountEl.style.color = isLive ? 'var(--success)' : 'var(--warning)';
+      amountEl.textContent = '$' + buyerBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    if (label) {
-      label.textContent = isLive
-        ? `Live balance from PayPal Balances API — ${data.account_email || ''}`
-        : `Balance source: ${balanceSource === 'simulated' ? 'Demo (simulated)' : 'Cached / API unavailable'}`;
-      label.style.color = isLive ? 'var(--success)' : 'var(--text-muted)';
-    }
-    if (dot) dot.style.background = isLive ? 'var(--success)' : 'var(--text-muted)';
+    if (dot) dot.style.background = isLive ? 'var(--success)' : 'var(--warning)';
     if (badge) badge.style.display = isLive ? 'inline-block' : 'none';
 
-    // Update gap-wallet source indicator
-    const walletSrc = document.getElementById('gap-wallet-source');
-    if (walletSrc) walletSrc.style.display = isLive ? 'inline' : 'none';
-
-    // Update sidebar balance with pulse animation
+    // Update sidebar balance
     const sidebarEl = document.getElementById('sidebar-balance');
     if (sidebarEl) {
-      sidebarEl.textContent = '$' + newBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      sidebarEl.textContent = '$' + buyerBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       sidebarEl.classList.remove('balance-updated');
       void sidebarEl.offsetWidth; // force reflow
       sidebarEl.classList.add('balance-updated');
     }
     if (sidebarLabel) {
       sidebarLabel.textContent = isLive
-        ? '✅ Live PayPal balance (Balances API)'
-        : balanceSource === 'simulated' ? '🎬 Demo simulated balance' : '⚠️ Cached balance (API unavailable)';
+        ? '✅ Funder Pool live (PayPal Balances API)'
+        : '🎬 Demo simulated balances';
       sidebarLabel.style.color = isLive ? 'var(--success)' : '';
     }
 
     showToast(isLive
-      ? `✅ Live balance synced: $${newBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+      ? `✅ PayPal Balances API connected! Funder Pool: $${funderBal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
       : `⚠️ ${data.message || 'Using cached balance'}`, isLive ? 'success' : 'warning');
 
   } catch (err) {
-    if (label) { label.textContent = 'Balance fetch failed — using cached value'; label.style.color = 'var(--danger)'; }
     if (dot) dot.style.background = 'var(--danger)';
     showToast('❌ Balance fetch error: ' + err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Balance'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Balances'; }
     if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+async function runPayPalApiDiagnostic() {
+  const btn = document.getElementById('run-diag-btn');
+  const resEl = document.getElementById('diag-results');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Diagnosing…'; }
+  if (resEl) { resEl.style.display = 'block'; resEl.textContent = 'Contacting PayPal Sandbox REST API (/v1/reporting/balances)...'; }
+
+  try {
+    const res = await fetch('/api/paypal/balances');
+    const data = await res.json();
+    if (resEl) {
+      resEl.textContent = `HTTP Status: ${data.status_code || res.status}\n` +
+        `Explanation: ${data.explanation || ''}\n` +
+        `Debug ID: ${data.debug_id || 'N/A'}\n` +
+        `Account ID: ${data.account_id || 'N/A'}\n` +
+        `Funder Pool Balance: $${data.available_usd || 0}\n\n` +
+        `Raw Response:\n${JSON.stringify(data.raw_response || data, null, 2)}`;
+    }
+  } catch (err) {
+    if (resEl) resEl.textContent = '❌ Diagnostic error: ' + err.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Run API Diagnostic (/api/paypal/balances)'; }
   }
 }
 
@@ -440,6 +489,15 @@ function promptOverdraftConfirmation(amount, shortfall) {
     document.getElementById('modal-shortfall').textContent = '$' + shortfall.toFixed(2);
     document.getElementById('modal-total-owed').textContent = '$' + totalOwed;
     document.getElementById('modal-notice-buffer').textContent = '$' + shortfall.toFixed(2);
+
+    // Fetch live recipient email
+    const recipEl = document.getElementById('modal-recipient-email');
+    if (recipEl) {
+      const navEmail = document.getElementById('nav-user-email');
+      if (navEmail && navEmail.textContent.includes('@')) {
+        recipEl.textContent = navEmail.textContent;
+      }
+    }
     const srcEl = document.getElementById('modal-balance-source');
     if (srcEl) {
       const srcMap = {

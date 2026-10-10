@@ -45,7 +45,7 @@ class User(db.Model):
     paypal_account_id = db.Column(db.String(200), unique=True, nullable=True)
     risk_tier = db.Column(db.String(10), default='LOW')   # LOW / MEDIUM / HIGH
     overdraft_limit = db.Column(db.Float, default=0.0)
-    simulated_balance = db.Column(db.Float, default=15.0)  # Demo wallet balance ($15 for the demo scenario)
+    simulated_balance = db.Column(db.Float, default=1130.65)  # Matches actual personal PayPal sandbox balance ($1,130.65)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 

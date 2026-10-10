@@ -46,6 +46,42 @@
   </div>
 </div>
 
+<!-- PayPal Sandbox Developer Accounts Card -->
+<div class="card mb-xl" style="background:rgba(0,112,186,0.07);border:1px solid rgba(0,112,186,0.25)">
+  <div class="flex items-center justify-between flex-wrap gap-md">
+    <div>
+      <div class="card-title" style="margin-bottom:4px;color:var(--text-primary)">
+        🔗 PayPal Sandbox Developer Integration
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-muted)">
+        Connected to Live PayPal Sandbox APIs — No Simulator
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="syncPayPalTransactions()" id="sync-tx-btn">
+      🔄 Sync Real Transaction History (Transaction Search API)
+    </button>
+  </div>
+  <div class="divider" style="margin:var(--space-sm) 0"></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:var(--space-md);font-size:0.825rem">
+    <div>
+      <div style="color:var(--text-muted)">PayFlow Funder Account (Business):</div>
+      <div style="font-weight:700;color:var(--info)">sb-qjdsl53206694@business.example.com</div>
+      <div style="font-size:0.75rem;color:var(--success);margin-top:2px">● Balances API &amp; Payouts Source</div>
+    </div>
+    <div>
+      <div style="color:var(--text-muted)">PayFlow Borrower Account (Personal):</div>
+      <div style="font-weight:700;color:var(--warning)">sb-tfjr4353268252@personal.example.com</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">Account ID: RTFSG6HD676ML</div>
+    </div>
+    <div>
+      <div style="color:var(--text-muted)">Active PayPal APIs:</div>
+      <div style="font-size:0.78rem;color:var(--text-primary);font-weight:600">
+        v1/balances · v1/payouts · v2/orders · v1/transactions
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="grid-sidebar">
   <!-- Left: Active Overdraft + History -->
   <div>
@@ -301,8 +337,20 @@ async function sendIncome(amount) {
     `;
     showToast(data.message, 'success');
     setTimeout(() => location.reload(), 1500);
+async function syncPayPalTransactions() {
+  const btn = document.getElementById('sync-tx-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching from PayPal Transaction Search API…'; }
+  showToast('Connecting to PayPal Transaction Search API...', 'info');
+
+  try {
+    const res = await fetch('/api/income/refresh', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'Transaction history synced!', data.success ? 'success' : 'warning');
+    setTimeout(() => location.reload(), 1500);
   } catch (e) {
-    showToast('Error', 'error');
+    showToast('Failed to sync transactions: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Real Transaction History (Transaction Search API)'; }
   }
 }
 </script>

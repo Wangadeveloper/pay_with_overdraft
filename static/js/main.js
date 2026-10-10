@@ -55,10 +55,83 @@ function animateValue(el, start, end, duration = 800) {
   requestAnimationFrame(update);
 }
 
-// Animate all .count-up elements
+// Animate all .count-up elements & initialize settings display
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.count-up').forEach(el => {
     const target = parseFloat(el.dataset.target || el.textContent.replace('$', ''));
     animateValue(el, 0, target);
   });
+  loadUserSettingsNav();
 });
+
+// ─── Sandbox Account Settings Modal ─────────────────────────────────
+async function loadUserSettingsNav() {
+  const el = document.getElementById('nav-user-email');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/user/settings');
+    const data = await res.json();
+    if (data.user && data.user.paypal_email) {
+      el.textContent = data.user.paypal_email;
+      el.title = `Connected PayPal Sandbox Email: ${data.user.paypal_email}`;
+    }
+  } catch (e) {
+    // legacy fallback
+  }
+}
+
+async function openSandboxSettingsModal() {
+  const modal = document.getElementById('sandbox-settings-modal');
+  if (!modal) return;
+  try {
+    const res = await fetch('/api/user/settings');
+    const data = await res.json();
+    if (data.user) {
+      const emailEl = document.getElementById('settings-buyer-email');
+      const nameEl = document.getElementById('settings-buyer-name');
+      if (emailEl) emailEl.value = data.user.paypal_email || '';
+      if (nameEl) nameEl.value = data.user.name || '';
+    }
+  } catch (e) {}
+  modal.classList.add('active');
+}
+
+function closeSandboxSettingsModal() {
+  const modal = document.getElementById('sandbox-settings-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function saveSandboxSettings() {
+  const email = document.getElementById('settings-buyer-email').value.trim();
+  const name = document.getElementById('settings-buyer-name').value.trim();
+
+  if (!email) {
+    showToast('Please enter a valid Personal Sandbox Email', 'error');
+    return;
+  }
+
+  showToast('Saving sandbox account settings...', 'info');
+
+  try {
+    const res = await fetch('/api/user/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paypal_email: email,
+        name: name || 'Sandbox Buyer'
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      closeSandboxSettingsModal();
+      loadUserSettingsNav();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast(data.error || 'Failed to save settings', 'error');
+    }
+  } catch (e) {
+    showToast('Network error saving settings: ' + e.message, 'error');
+  }
+}

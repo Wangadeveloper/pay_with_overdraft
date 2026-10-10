@@ -68,18 +68,22 @@ def demo_user(app):
             )
             db.session.add(user)
             db.session.flush()
-            # Add 30 days of income history: $70/day × 30 = $2100 income (25% = $525, capped at $500)
-            for i in range(30):
-                tx = TransactionHistory(
-                    user_id=user.id,
-                    paypal_tx_id=f"TEST-IN-{i}",
-                    amount=70.0,
-                    direction='IN',
-                    description='Test income',
-                    created_at=datetime.now() - timedelta(days=i)
-                )
-                db.session.add(tx)
-            db.session.commit()
+        else:
+            user.simulated_balance = 5000.0
+            user.overdraft_limit = 500.0
+
+        # Add 30 days of income history: $70/day × 30 = $2100 income (25% = $525, capped at $500)
+        for i in range(30):
+            tx = TransactionHistory(
+                user_id=user.id,
+                paypal_tx_id=f"TEST-IN-{i}",
+                amount=70.0,
+                direction='IN',
+                description='Test income',
+                created_at=datetime.now() - timedelta(days=i)
+            )
+            db.session.add(tx)
+        db.session.commit()
         return user
 
 

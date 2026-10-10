@@ -53,6 +53,20 @@ def overdraft_status():
     risk_tier = compute_risk_tier(income)
     active_od = user.active_overdraft
 
+    # Fetch Funder Pool balance live from business account (sb-qjdsl53206694@business.example.com)
+    funder_balance = 0.0
+    funder_email = current_app.config.get('PAYPAL_FUNDER_EMAIL', 'sb-qjdsl53206694@business.example.com')
+    try:
+        if not current_app.config.get('DEMO_MODE', False):
+            from paypal_client import PayPalClient
+            client = PayPalClient()
+            bal_info = client.get_account_balance()
+            funder_balance = bal_info.get('available_usd', 0.0)
+        else:
+            funder_balance = 10000.00  # demo fallback
+    except Exception:
+        pass
+
     return jsonify({
         'user': {
             'email': user.paypal_email,
@@ -60,6 +74,11 @@ def overdraft_status():
             'account_id': user.paypal_account_id,
             'risk_tier': risk_tier,
             'wallet_balance': user.simulated_balance,
+        },
+        'funder': {
+            'email': funder_email,
+            'pool_balance': funder_balance,
+            'mode': current_app.config.get('PAYPAL_MODE', 'sandbox')
         },
         'overdraft': {
             'limit': od_limit,
