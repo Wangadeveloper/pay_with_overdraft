@@ -1,0 +1,37 @@
+# Exported from Render on 2026-10-17T13:58:02Z
+version: "1"
+projects:
+- name: My project
+  environments:
+  - name: Production
+    services:
+    - type: web
+      name: pay_with_overdraft
+      runtime: python
+      repo: https://github.com/Wangadeveloper/pay_with_overdraft
+      plan: free
+      envVars:
+      - key: PAYPAL_BUYER_NAME
+        sync: false
+      - key: PAYPAL_BUYER_ACCOUNT_ID
+        sync: false
+      - key: PAYPAL_BUYER_EMAIL
+        sync: false
+      - key: PAYPAL_MERCHANT_EMAIL
+        sync: false
+      - key: DEMO_MODE
+        sync: false
+      - key: PAYPAL_MODE
+        sync: false
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      region: oregon
+      buildCommand: pip install -r requirements.txt
+      startCommand: gunicorn "run:create_app()"
+      autoDeployTrigger: commit
