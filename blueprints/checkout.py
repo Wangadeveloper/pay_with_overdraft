@@ -164,35 +164,59 @@ def fetch_live_balance():
         funder_email = current_app.config.get('PAYPAL_FUNDER_EMAIL', 'sb-qjdsl53206694@business.example.com')
 
         # ── Step 2: Fetch Buyer balance (personal account: sb-tfjr4353268252@personal.example.com)
+        #    Uses BuyerPayPalClient (PAYPAL_BUYER_CLIENT_ID / PAYPAL_BUYER_CLIENT_SECRET) if set,
+        #    otherwise returns source='buyer_credentials_missing'.
         buyer_result = client.get_buyer_balance(user.paypal_email)
-        buyer_usd = buyer_result.get('available_usd')
+        buyer_source = buyer_result.get('source', 'unknown')
+        buyer_usd = buyer_result.get('available_usd')   # None = no real value returned
+        buyer_success = buyer_result.get('success', buyer_usd is not None)
 
-        # Sync buyer wallet balance to DB (use live value if available, else keep existing)
-        if buyer_usd is not None and buyer_usd > 0:
+        # Sync buyer wallet balance to DB only when we got a genuine live value
+        if buyer_usd is not None and buyer_success:
             user.simulated_balance = buyer_usd
-        elif funder_result.get('success') and funder_usd > 0 and buyer_usd is None:
-            # Buyer API unavailable — keep existing DB balance, don't overwrite with funder amount
-            pass
+            current_app.logger.info(
+                f"[BuyerBalance] Synced live balance ${buyer_usd:.2f} to DB "
+                f"for {user.paypal_email} (source={buyer_source})"
+            )
+        else:
+            current_app.logger.info(
+                f"[BuyerBalance] Keeping cached DB balance ${user.simulated_balance:.2f} "
+                f"for {user.paypal_email} — buyer API source: {buyer_source}"
+            )
 
         db.session.commit()
 
         current_app.logger.info(
             f"Funder Pool ({funder_email}): ${funder_usd:.2f} | "
-            f"Buyer ({user.paypal_email}): ${user.simulated_balance:.2f}"
+            f"Buyer ({user.paypal_email}): ${user.simulated_balance:.2f} [source={buyer_source}]"
         )
 
-        return jsonify({
+        response = {
             'funder_balance': round(funder_usd, 2),
             'funder_account_id': funder_account_id,
             'funder_email': funder_email,
+            'funder_success': funder_result.get('success', False),
             'buyer_balance': round(user.simulated_balance, 2),
+            'buyer_live_balance': round(buyer_usd, 2) if buyer_usd is not None else None,
+            'buyer_success': buyer_success,
+            'buyer_source': buyer_source,
             'balance': round(user.simulated_balance, 2),
             'available_usd': round(user.simulated_balance, 2),
             'source': 'paypal_balances_api',
             'currency': 'USD',
             'account_email': user.paypal_email,
-            'raw_funder_response': funder_result.get('raw', {})
-        })
+            'raw_funder_response': funder_result.get('raw', {}),
+        }
+
+        # Surface advisory when buyer credentials are not yet configured
+        if buyer_source == 'buyer_credentials_missing':
+            response['buyer_advisory'] = (
+                'Live buyer balance unavailable — PAYPAL_BUYER_CLIENT_ID / '
+                'PAYPAL_BUYER_CLIENT_SECRET not configured in .env. '
+                'Call GET /api/balance/buyer for step-by-step setup instructions.'
+            )
+
+        return jsonify(response)
 
     except Exception as exc:
         current_app.logger.warning(
@@ -201,6 +225,9 @@ def fetch_live_balance():
         return jsonify({
             'funder_balance': 0.0,
             'buyer_balance': round(user.simulated_balance, 2),
+            'buyer_live_balance': None,
+            'buyer_success': False,
+            'buyer_source': 'error',
             'balance': round(user.simulated_balance, 2),
             'available_usd': round(user.simulated_balance, 2),
             'source': 'cached',
@@ -209,6 +236,86 @@ def fetch_live_balance():
             'account_email': user.paypal_email,
             'message': f'Buyer balance returned from cache for {user.paypal_email}.'
         })
+
+
+
+@checkout_bp.route('/api/balance/buyer', methods=['GET'])
+def fetch_buyer_balance_diagnostic():
+    """
+    Dedicated diagnostic endpoint — fetch live wallet balance for the personal buyer account
+    (sb-tfjr4353268252@personal.example.com / Merchant ID: RTFSG6HD676ML).
+
+    Requires PAYPAL_BUYER_CLIENT_ID and PAYPAL_BUYER_CLIENT_SECRET in .env — these must
+    be the credentials of a sandbox app created *under* the personal buyer account, not
+    the business/funder app.  Returns setup instructions when credentials are missing.
+    """
+    user = get_demo_user()
+
+    demo_mode = current_app.config.get('DEMO_MODE', False)
+    if demo_mode:
+        return jsonify({
+            'success': True,
+            'source': 'demo_simulated',
+            'buyer_email': user.paypal_email,
+            'available_usd': round(user.simulated_balance, 2),
+            'currency': 'USD',
+            'message': 'Demo mode — returning simulated buyer balance.'
+        })
+
+    buyer_client_id = current_app.config.get('PAYPAL_BUYER_CLIENT_ID', '').strip()
+    buyer_client_secret = current_app.config.get('PAYPAL_BUYER_CLIENT_SECRET', '').strip()
+    credentials_configured = bool(buyer_client_id and buyer_client_secret)
+
+    try:
+        client = PayPalClient()
+        result = client.get_buyer_balance(user.paypal_email)
+
+        buyer_usd = result.get('available_usd')
+        buyer_source = result.get('source', 'unknown')
+        buyer_success = result.get('success', buyer_usd is not None)
+
+        # Sync to DB if we received a genuine live value
+        if buyer_usd is not None and buyer_success:
+            user.simulated_balance = buyer_usd
+            db.session.commit()
+
+        response = {
+            'success': buyer_success,
+            'buyer_email': user.paypal_email,
+            'buyer_account_id': current_app.config.get('PAYPAL_BUYER_ACCOUNT_ID', 'RTFSG6HD676ML'),
+            'available_usd': round(buyer_usd, 2) if buyer_usd is not None else None,
+            'db_balance': round(user.simulated_balance, 2),
+            'currency': 'USD',
+            'source': buyer_source,
+            'credentials_configured': credentials_configured,
+            'raw_response': result.get('raw', {}),
+        }
+
+        if not credentials_configured:
+            response['setup_instructions'] = [
+                'Step 1: Go to developer.paypal.com and log in with the SANDBOX PERSONAL account '
+                '(sb-tfjr4353268252@personal.example.com)',
+                'Step 2: Navigate to Apps & Credentials → Create App (sandbox mode)',
+                'Step 3: Copy the generated Client ID and Secret',
+                'Step 4: Add to .env — PAYPAL_BUYER_CLIENT_ID=<id>  PAYPAL_BUYER_CLIENT_SECRET=<secret>',
+                'Step 5: Restart the Flask server, then call GET /api/balance/buyer again'
+            ]
+
+        if result.get('error'):
+            response['error'] = result['error']
+
+        return jsonify(response), (200 if buyer_success else 422)
+
+    except Exception as exc:
+        current_app.logger.error(f"Buyer balance diagnostic error: {exc}")
+        return jsonify({
+            'success': False,
+            'buyer_email': user.paypal_email,
+            'available_usd': None,
+            'source': 'error',
+            'credentials_configured': credentials_configured,
+            'error': str(exc)
+        }), 502
 
 
 @checkout_bp.route('/api/paypal/balances', methods=['GET'])

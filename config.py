@@ -18,10 +18,13 @@ class Config:
     # PayFlow Funder Pool — business sandbox account whose balance backs all overdraft payouts
     PAYPAL_FUNDER_EMAIL = os.environ.get('PAYPAL_FUNDER_EMAIL', 'sb-qjdsl53206694@business.example.com')
 
-    # Business sandbox account — the PayFlow buyer account (personal)
-    PAYPAL_BUYER_EMAIL = os.environ.get('PAYPAL_BUYER_EMAIL', 'sb-qjdsl53206694@business.example.com')
+    # Personal sandbox account — the PayFlow buyer/borrower account
+    PAYPAL_BUYER_EMAIL = os.environ.get('PAYPAL_BUYER_EMAIL', 'sb-tfjr4353268252@personal.example.com')
     PAYPAL_BUYER_ACCOUNT_ID = os.environ.get('PAYPAL_BUYER_ACCOUNT_ID', 'RTFSG6HD676ML')
     PAYPAL_BUYER_NAME = os.environ.get('PAYPAL_BUYER_NAME', 'John Doe')
+    PAYPAL_BUYER_CLIENT_ID = os.environ.get('PAYPAL_BUYER_CLIENT_ID', '')
+    PAYPAL_BUYER_CLIENT_SECRET = os.environ.get('PAYPAL_BUYER_CLIENT_SECRET', '')
+    PAYPAL_BUYER_INITIAL_BALANCE = float(os.environ.get('PAYPAL_BUYER_INITIAL_BALANCE', 5000.00))
 
     @property
     def DEMO_MODE(self):
