@@ -1086,3 +1086,340 @@ tbody tr:hover td {
 .modal-actions .btn {
   flex: 1;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   AG Grid — PayFlow Financial Activity Table
+   Dark theme overrides + layout styles for the activity section
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Activity Section Layout ────────────────────────────────────── */
+.activity-section {
+  margin-bottom: var(--space-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.activity-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.activity-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.activity-subtitle {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ─── Search Bar ─────────────────────────────────────────────────── */
+.activity-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.activity-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 0.9rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.activity-search {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  padding: 9px 14px 9px 36px;
+  width: 260px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.activity-search::placeholder {
+  color: var(--text-muted);
+}
+
+.activity-search:focus {
+  border-color: var(--pp-blue-light);
+  box-shadow: 0 0 0 3px rgba(0, 112, 186, 0.15);
+}
+
+/* ─── Filter Tabs ────────────────────────────────────────────────── */
+.ag-filter-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.ag-filter-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 5px 14px;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.15s;
+  white-space: nowrap;
+}
+
+.ag-filter-tab:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.ag-filter-tab.active {
+  background: linear-gradient(135deg, var(--pp-blue-light), #005b9a);
+  border-color: var(--pp-blue-light);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0, 112, 186, 0.35);
+}
+
+/* ─── Activity Badge (inside grid cells) ────────────────────────── */
+.ag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ─── Details Button (inside grid cell) ─────────────────────────── */
+.ag-detail-btn {
+  background: rgba(0, 112, 186, 0.12);
+  border: 1px solid rgba(0, 112, 186, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--info, #60a5fa);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+
+.ag-detail-btn:hover {
+  background: rgba(0, 112, 186, 0.25);
+  transform: translateY(-1px);
+}
+
+/* ─── Loading / Empty States ─────────────────────────────────────── */
+.activity-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.activity-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-glass);
+  border-top-color: var(--pp-blue-light);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.activity-empty {
+  padding: var(--space-2xl);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ─── AG Grid: Dark Theme Token Overrides ────────────────────────── */
+.payflow-grid {
+  --ag-background-color: transparent;
+  --ag-foreground-color: var(--text-primary);
+  --ag-secondary-foreground-color: var(--text-secondary);
+  --ag-header-background-color: rgba(255, 255, 255, 0.04);
+  --ag-header-foreground-color: var(--text-secondary);
+  --ag-odd-row-background-color: rgba(255, 255, 255, 0.015);
+  --ag-row-hover-color: rgba(0, 112, 186, 0.10);
+  --ag-selected-row-background-color: rgba(0, 112, 186, 0.15);
+  --ag-border-color: rgba(255, 255, 255, 0.07);
+  --ag-row-border-color: rgba(255, 255, 255, 0.05);
+  --ag-font-family: 'Inter', sans-serif;
+  --ag-font-size: 13px;
+  --ag-cell-horizontal-padding: 16px;
+  --ag-header-column-separator-color: rgba(255, 255, 255, 0.07);
+  --ag-input-focus-border-color: var(--pp-blue-light);
+  --ag-range-selection-border-color: var(--pp-blue-light);
+  --ag-checkbox-checked-color: var(--pp-blue-light);
+  --ag-alpine-active-color: var(--pp-blue-light);
+  --ag-balham-active-color: var(--pp-blue-light);
+  --ag-pagination-button-color: var(--text-secondary);
+  --ag-pagination-button-hover-color: var(--text-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Header cell styling */
+.payflow-grid .ag-header-cell-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* Remove the default AG Grid border on focus */
+.payflow-grid .ag-cell:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Pagination bar */
+.payflow-grid .ag-paging-panel {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 8px 16px;
+}
+
+/* Filter/sort icons */
+.payflow-grid .ag-icon {
+  color: var(--text-muted);
+}
+
+/* ─── Detail Panel ───────────────────────────────────────────────── */
+.activity-detail-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              margin-top 0.25s ease;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.activity-detail-panel.visible {
+  max-height: 600px;
+  opacity: 1;
+  margin-top: var(--space-lg);
+}
+
+.detail-panel-inner {
+  background: rgba(0, 112, 186, 0.07);
+  border: 1px solid rgba(0, 112, 186, 0.25);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+}
+
+.detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+  gap: var(--space-md);
+}
+
+.detail-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-right: var(--space-sm);
+}
+
+.detail-ref {
+  font-size: 0.8rem;
+  color: var(--info, #60a5fa);
+  font-family: monospace;
+  background: rgba(0, 112, 186, 0.12);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.detail-close {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  height: 28px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.2s, color 0.2s;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.detail-close:hover {
+  background: rgba(255, 77, 109, 0.15);
+  color: var(--danger);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+.detail-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.detail-item--full {
+  grid-column: 1 / -1;
+}
+
+.detail-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-word;
+}
+

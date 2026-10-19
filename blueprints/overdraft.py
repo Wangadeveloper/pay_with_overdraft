@@ -192,6 +192,85 @@ def simulate_income():
 
 # ─── Transaction Search Income Refresh ─────────────────────────────────────────
 
+@overdraft_bp.route('/api/activity')
+def financial_activity():
+    """
+    Unified financial activity feed for the AG Grid table.
+    Merges TransactionHistory and OverdraftBuffer into a single
+    normalised list, sorted newest-first.
+    """
+    user = get_demo_user()
+    if not user:
+        return jsonify({'error': 'user_not_found'}), 404
+
+    rows = []
+
+    # ── Overdraft records ──────────────────────────────────────────────
+    overdrafts = OverdraftBuffer.query.filter_by(user_id=user.id).all()
+    for od in overdrafts:
+        # Map internal state machine status to a simple display status
+        if od.status in ('REPAYMENT_RECEIVED', 'CLOSED', 'REPAID'):
+            display_status = 'REPAID'
+        elif od.status in ('DECLINED', 'PAYOUT_FAILED', 'DEFAULTED'):
+            display_status = 'FAILED'
+        elif od.status in ('OVERDRAFT_REQUESTED', 'RISK_APPROVED',
+                           'PAYOUT_PENDING'):
+            display_status = 'PENDING'
+        else:
+            display_status = 'ACTIVE'
+
+        rows.append({
+            'id': f'OD-{od.id}',
+            'date': od.created_at.isoformat(),
+            'type': 'overdraft',
+            'reference': f'PF-OD-{od.id:04d}',
+            'amount': round(od.amount_covered, 2),
+            'credit_used': round(od.amount_covered, 2),
+            'fee': round(od.flat_fee, 2),
+            'status': display_status,
+            'detail': {
+                'payout_batch_id': od.payout_batch_id or '—',
+                'order_id': od.order_id or '—',
+                'due_date': od.due_date.isoformat() if od.due_date else None,
+                'repaid_at': od.repaid_at.isoformat() if od.repaid_at else None,
+                'days_overdue': od.days_overdue,
+                'internal_status': od.status,
+                'total_owed': round(od.total_owed, 2),
+            }
+        })
+
+    # ── Transaction history records ────────────────────────────────────
+    transactions = TransactionHistory.query.filter_by(user_id=user.id).all()
+    for tx in transactions:
+        activity_type = 'incoming' if tx.direction == 'IN' else 'payment'
+        rows.append({
+            'id': f'TX-{tx.id}',
+            'date': tx.created_at.isoformat(),
+            'type': activity_type,
+            'reference': tx.paypal_tx_id or f'TX-{tx.id:04d}',
+            'amount': round(tx.amount, 2),
+            'credit_used': 0.0,
+            'fee': 0.0,
+            'status': 'COMPLETED',
+            'detail': {
+                'description': tx.description or '—',
+                'currency': tx.currency,
+                'direction': tx.direction,
+                'payout_batch_id': '—',
+                'order_id': '—',
+                'due_date': None,
+                'repaid_at': None,
+                'days_overdue': 0,
+                'total_owed': 0.0,
+            }
+        })
+
+    # Sort newest-first
+    rows.sort(key=lambda r: r['date'], reverse=True)
+
+    return jsonify({'success': True, 'rows': rows, 'count': len(rows)})
+
+
 @overdraft_bp.route('/api/income/refresh', methods=['POST'])
 def refresh_income_from_paypal():
     """

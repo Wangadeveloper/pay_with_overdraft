@@ -82,8 +82,64 @@
   </div>
 </div>
 
+<!-- ── AG Grid: My Financial Activity ─────────────────────────────────── -->
+<section class="activity-section" aria-label="Financial Activity">
+  <div class="activity-header">
+    <div>
+      <h2 class="activity-title">🗂 My Financial Activity</h2>
+      <p class="activity-subtitle">Every overdraft, incoming payment, and repayment — searchable and filterable</p>
+    </div>
+    <div class="activity-controls">
+      <div class="activity-search-wrap">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          id="activity-search"
+          class="activity-search"
+          placeholder="Search by reference, status, type…"
+          autocomplete="off"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick-filter tabs -->
+  <div class="ag-filter-tabs" role="tablist" aria-label="Filter by status">
+    <button class="ag-filter-tab active" role="tab" onclick="applyStatusFilter('ALL', this)" id="tab-all">All</button>
+    <button class="ag-filter-tab" role="tab" onclick="applyStatusFilter('ACTIVE', this)" id="tab-active">⚡ Active</button>
+    <button class="ag-filter-tab" role="tab" onclick="applyStatusFilter('PENDING', this)" id="tab-pending">⏳ Pending</button>
+    <button class="ag-filter-tab" role="tab" onclick="applyStatusFilter('REPAID', this)" id="tab-repaid">✅ Repaid</button>
+    <button class="ag-filter-tab" role="tab" onclick="applyStatusFilter('COMPLETED', this)" id="tab-completed">✓ Completed</button>
+    <button class="ag-filter-tab" role="tab" onclick="applyStatusFilter('FAILED', this)" id="tab-failed">✕ Failed</button>
+  </div>
+
+  <!-- Loading indicator -->
+  <div id="activity-grid-loading" class="activity-loading">
+    <div class="activity-spinner"></div>
+    <span>Loading activity…</span>
+  </div>
+
+  <!-- AG Grid container -->
+  <div
+    id="activity-grid"
+    class="ag-theme-alpine-dark payflow-grid"
+    role="grid"
+    aria-label="Financial activity data grid"
+  ></div>
+
+  <!-- Empty state -->
+  <div id="activity-grid-empty" class="activity-empty hidden">
+    <div style="font-size:2.5rem;margin-bottom:var(--space-md)">📋</div>
+    <div style="font-weight:600;color:var(--text-primary)">No activity yet</div>
+    <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px">Try a checkout or sync PayPal transactions to see records here.</div>
+  </div>
+
+  <!-- Slide-in detail panel -->
+  <div id="activity-detail" class="activity-detail-panel" role="region" aria-label="Transaction detail"></div>
+</section>
+
 <div class="grid-sidebar">
-  <!-- Left: Active Overdraft + History -->
+  <!-- Left: Active Overdraft -->
   <div>
     {% if active_overdraft %}
     <!-- Active Overdraft Card -->
@@ -162,44 +218,7 @@
     </div>
     {% endif %}
 
-    <!-- Overdraft History Table -->
-    {% if overdraft_history %}
-    <div class="card">
-      <div class="card-title">📋 Overdraft History</div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Amount</th>
-              <th>Total Owed</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Repaid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for od in overdraft_history %}
-            <tr>
-              <td style="color:var(--text-muted)">#{{ od.id }}</td>
-              <td class="tx-amount">${{ "%.2f"|format(od.amount_covered) }}</td>
-              <td class="tx-amount {% if od.status == 'ACTIVE' %}tx-out{% else %}text-muted{% endif %}">${{ "%.2f"|format(od.total_owed) }}</td>
-              <td>
-                <span class="badge {% if od.status == 'REPAID' %}badge-success{% elif od.status == 'ACTIVE' %}badge-warning{% else %}badge-danger{% endif %}">
-                  {{ od.status }}
-                </span>
-              </td>
-              <td style="color:var(--text-muted);font-size:0.78rem">{{ od.created_at.strftime('%b %d, %H:%M') }}</td>
-              <td style="color:var(--text-muted);font-size:0.78rem">
-                {{ od.repaid_at.strftime('%b %d, %H:%M') if od.repaid_at else '—' }}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
+
   </div>
 
   <!-- Right: Policy & Risk Info -->
@@ -337,6 +356,11 @@ async function sendIncome(amount) {
     `;
     showToast(data.message, 'success');
     setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    showToast('Income simulation failed', 'error');
+  }
+}
+
 async function syncPayPalTransactions() {
   const btn = document.getElementById('sync-tx-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching from PayPal Transaction Search API…'; }
@@ -354,4 +378,10 @@ async function syncPayPalTransactions() {
   }
 }
 </script>
+
+<!-- AG Grid Enterprise (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@33.3.0/dist/ag-grid-enterprise.min.js"></script>
+<!-- PayFlow Activity Grid -->
+<script src="{{ url_for('static', filename='js/activity-grid.js') }}"></script>
 {% endblock %}
+
