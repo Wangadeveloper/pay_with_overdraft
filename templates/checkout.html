@@ -301,6 +301,176 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PayPal Sandbox Login Modal
+     Shows on page load — user enters their sandbox credentials or skips
+     to use the developer's default account.
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="sandbox-login-modal" style="
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(5,12,30,0.85);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:var(--space-md);
+  overflow-y:auto;
+  opacity:0;transition:opacity 0.35s;
+" aria-modal="true" role="dialog" aria-labelledby="login-modal-title">
+  <div style="
+    background:linear-gradient(145deg,rgba(10,25,47,0.98) 0%,rgba(15,35,65,0.98) 100%);
+    border:1px solid rgba(0,112,186,0.45);
+    border-radius:20px;
+    width:100%;max-width:440px;
+    max-height:90dvh;
+    overflow-y:auto;
+    padding:36px 32px 28px;
+    box-shadow:0 40px 80px rgba(0,0,0,0.6),0 0 60px rgba(0,112,186,0.12);
+    transform:translateY(20px);transition:transform 0.35s;
+    position:relative;
+    margin:auto 0;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(0,156,222,0.35) transparent;
+  " id="sandbox-login-card">
+
+    <!-- PayPal Logo-style badge -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px">
+      <div style="
+        width:44px;height:44px;border-radius:12px;
+        background:linear-gradient(135deg,#003087,#009cde);
+        display:flex;align-items:center;justify-content:center;
+        font-size:1.3rem;box-shadow:0 4px 16px rgba(0,112,186,0.4);
+      ">🔐</div>
+      <div>
+        <div style="font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:800;color:#fff" id="login-modal-title">PayPal Sandbox Login</div>
+        <div style="font-size:0.72rem;color:rgba(0,212,170,0.9);font-weight:600;letter-spacing:0.04em">PAYFLOW BUYER AUTHENTICATION</div>
+      </div>
+    </div>
+
+    <!-- Info notice -->
+    <div style="
+      background:rgba(0,112,186,0.1);border:1px solid rgba(0,112,186,0.3);
+      border-radius:10px;padding:10px 14px;margin-bottom:24px;
+      font-size:0.78rem;color:rgba(180,210,255,0.85);line-height:1.5;
+    ">
+      <span style="color:var(--info);font-weight:700">ℹ️ Sandbox Environment</span><br>
+      Enter your PayPal <strong>sandbox</strong> account email &amp; password
+      to load your real test balance. Or skip to use the demo account.
+    </div>
+
+    <!-- Form -->
+    <div id="login-form-area">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em">SANDBOX EMAIL</label>
+        <div style="position:relative">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:0.95rem;opacity:0.5">✉️</span>
+          <input
+            type="email"
+            id="login-email"
+            placeholder="sb-xxxxx@personal.example.com"
+            autocomplete="username"
+            style="
+              width:100%;box-sizing:border-box;
+              padding:11px 12px 11px 38px;
+              background:rgba(255,255,255,0.06);
+              border:1px solid rgba(0,112,186,0.35);
+              border-radius:10px;color:#fff;
+              font-size:0.875rem;font-family:'Outfit',sans-serif;
+              outline:none;transition:border-color 0.2s;
+            "
+            onfocus="this.style.borderColor='rgba(0,156,222,0.7)'"
+            onblur="this.style.borderColor='rgba(0,112,186,0.35)'"
+          />
+        </div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em">SANDBOX PASSWORD</label>
+        <div style="position:relative">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:0.95rem;opacity:0.5">🔑</span>
+          <input
+            type="password"
+            id="login-password"
+            placeholder="Your sandbox password"
+            autocomplete="current-password"
+            style="
+              width:100%;box-sizing:border-box;
+              padding:11px 12px 11px 38px;
+              background:rgba(255,255,255,0.06);
+              border:1px solid rgba(0,112,186,0.35);
+              border-radius:10px;color:#fff;
+              font-size:0.875rem;font-family:'Outfit',sans-serif;
+              outline:none;transition:border-color 0.2s;
+            "
+            onfocus="this.style.borderColor='rgba(0,156,222,0.7)'"
+            onblur="this.style.borderColor='rgba(0,112,186,0.35)'"
+            onkeydown="if(event.key==='Enter')sandboxLogin()"
+          />
+        </div>
+      </div>
+
+      <!-- Login error -->
+      <div id="login-error" style="display:none;margin-bottom:14px;padding:10px 12px;background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.35);border-radius:8px;font-size:0.8rem;color:#ff6b8a"></div>
+
+      <!-- Primary CTA -->
+      <button
+        id="login-btn"
+        onclick="sandboxLogin()"
+        style="
+          width:100%;padding:13px;border:none;border-radius:12px;cursor:pointer;
+          background:linear-gradient(135deg,#0070ba,#003087);
+          color:#fff;font-size:0.9rem;font-weight:700;
+          font-family:'Outfit',sans-serif;letter-spacing:0.02em;
+          transition:all 0.25s;box-shadow:0 4px 20px rgba(0,112,186,0.35);
+          display:flex;align-items:center;justify-content:center;gap:8px;
+        "
+        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 28px rgba(0,112,186,0.5)'"
+        onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(0,112,186,0.35)'"
+      >
+        <span id="login-btn-icon">🔓</span>
+        <span id="login-btn-text">Connect Sandbox Account</span>
+      </button>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
+        <span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">or continue without an account</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.1)"></div>
+      </div>
+
+      <!-- Use default account -->
+      <button
+        id="use-default-btn"
+        onclick="useDefaultAccount()"
+        style="
+          width:100%;padding:11px;border-radius:12px;cursor:pointer;
+          background:transparent;
+          border:1px solid rgba(0,212,170,0.35);
+          color:var(--success);font-size:0.85rem;font-weight:600;
+          font-family:'Outfit',sans-serif;
+          transition:all 0.25s;
+          display:flex;align-items:center;justify-content:center;gap:8px;
+        "
+        onmouseover="this.style.background='rgba(0,212,170,0.08)';this.style.borderColor='rgba(0,212,170,0.6)'"
+        onmouseout="this.style.background='transparent';this.style.borderColor='rgba(0,212,170,0.35)'"
+      >
+        <span>👤</span>
+        <span>I don't have an account — use demo account</span>
+      </button>
+    </div>
+
+    <!-- Success state (shown after login) -->
+    <div id="login-success-state" style="display:none;text-align:center;padding:8px 0">
+      <div style="font-size:2.5rem;margin-bottom:10px">✅</div>
+      <div style="font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success);margin-bottom:6px" id="login-success-name">Welcome!</div>
+      <div style="font-size:0.8rem;color:var(--text-muted)" id="login-success-detail"></div>
+      <div style="margin-top:16px;padding:12px;background:rgba(0,212,170,0.08);border-radius:10px;border:1px solid rgba(0,212,170,0.25)">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">Wallet Balance Loaded</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:1.8rem;font-weight:800;color:var(--success)" id="login-success-balance">$0.00</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Overdraft Confirmation Modal -->
 <div id="overdraft-modal" class="modal-overlay">
   <div class="modal-card">
@@ -857,8 +1027,139 @@ function sleep(ms) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-// Initialize gap detector with seeded value, then immediately fetch live balance
+// Initialize gap detector with seeded value; live balance fetched AFTER login.
 updateGapDetector();
-fetchLiveBalance();
+
+// ── Sandbox Login Modal ───────────────────────────────────────────────────────
+
+(function initLoginModal() {
+  const modal   = document.getElementById('sandbox-login-modal');
+  const card    = document.getElementById('sandbox-login-card');
+
+  // Animate in
+  requestAnimationFrame(() => {
+    modal.style.opacity = '1';
+    card.style.transform = 'translateY(0)';
+  });
+
+  // Prevent scroll behind modal
+  document.body.style.overflow = 'hidden';
+})();
+
+function closeSandboxModal() {
+  const modal = document.getElementById('sandbox-login-modal');
+  const card  = document.getElementById('sandbox-login-card');
+  card.style.transform  = 'translateY(20px)';
+  modal.style.opacity   = '0';
+  setTimeout(() => {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    // Fetch live balance now that account is set
+    fetchLiveBalance();
+  }, 350);
+}
+
+async function sandboxLogin() {
+  const email    = (document.getElementById('login-email').value || '').trim();
+  const password = (document.getElementById('login-password').value || '').trim();
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-btn');
+  const btnText  = document.getElementById('login-btn-text');
+  const btnIcon  = document.getElementById('login-btn-icon');
+
+  errEl.style.display = 'none';
+
+  if (!email) {
+    errEl.textContent = '⚠️ Please enter your sandbox email address.';
+    errEl.style.display = 'block';
+    document.getElementById('login-email').focus();
+    return;
+  }
+
+  // Loading state
+  btn.disabled = true;
+  btnIcon.textContent = '⏳';
+  btnText.textContent = 'Connecting…';
+
+  try {
+    const res  = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      errEl.textContent = '❌ ' + (data.message || 'Login failed. Please check your credentials.');
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btnIcon.textContent = '🔓';
+      btnText.textContent = 'Connect Sandbox Account';
+      return;
+    }
+
+    // Success — show success state then close
+    showLoginSuccess(data);
+  } catch (err) {
+    errEl.textContent = '❌ Network error: ' + err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btnIcon.textContent = '🔓';
+    btnText.textContent = 'Connect Sandbox Account';
+  }
+}
+
+async function useDefaultAccount() {
+  const btn    = document.getElementById('use-default-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Loading demo account…';
+
+  try {
+    const res  = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ use_default: true })
+    });
+    const data = await res.json();
+    showLoginSuccess(data);
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<span>👤</span><span>I don\'t have an account — use demo account</span>';
+    showToast('❌ Could not load default account: ' + err.message, 'error');
+  }
+}
+
+function showLoginSuccess(data) {
+  const user     = data.user || {};
+  const balance  = parseFloat(user.balance) || 0;
+  const email    = user.paypal_email || '';
+  const name     = user.name || email.split('@')[0];
+
+  // Update page-level wallet state immediately
+  walletBalance = balance;
+  updateGapDetector();
+
+  // Update sidebar balance
+  const sidebarEl = document.getElementById('sidebar-balance');
+  if (sidebarEl) {
+    sidebarEl.textContent = '$' + balance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+  }
+
+  // Update buyer email hints on page
+  const emailHints = document.querySelectorAll('#modal-recipient-email, #nav-user-email');
+  emailHints.forEach(el => { if (el) el.textContent = email; });
+
+  // Show success panel inside modal
+  document.getElementById('login-form-area').style.display = 'none';
+  const successState  = document.getElementById('login-success-state');
+  successState.style.display = 'block';
+  document.getElementById('login-success-name').textContent    = `Welcome, ${name}! 🎉`;
+  document.getElementById('login-success-detail').textContent  = email;
+  document.getElementById('login-success-balance').textContent = '$' + balance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+  // Close modal after brief pause
+  setTimeout(closeSandboxModal, 1600);
+  showToast(`✅ Logged in as ${name}`, 'success');
+}
 </script>
 {% endblock %}

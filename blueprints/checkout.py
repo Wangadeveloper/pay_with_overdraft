@@ -26,36 +26,195 @@ PayFlow checkout sequence (corrected architecture):
     Webhook PAYMENT.CAPTURE.COMPLETED (buyer receives next payment)
       → auto-deduct total_owed → REPAYMENT_RECEIVED → CLOSED
 """
-from flask import Blueprint, request, jsonify, render_template, current_app
+from flask import Blueprint, request, jsonify, render_template, current_app, session
 from models import db, User, OverdraftBuffer, TransactionHistory
-from paypal_client import PayPalClient
+from paypal_client import PayPalClient, BuyerPayPalClient
 from risk_engine import detect_shortfall, can_cover_shortfall, compute_overdraft_limit
 from datetime import datetime
 
 checkout_bp = Blueprint('checkout', __name__)
 
+# ── Default (developer) sandbox account credentials ───────────────────────────
+DEFAULT_BUYER_EMAIL = 'sb-tfjr4353268252@personal.example.com'
+DEFAULT_BUYER_NAME  = 'John Doe'
+DEFAULT_BUYER_ACCOUNT_ID = 'RTFSG6HD676ML'
+DEFAULT_BUYER_BALANCE = 1130.65
+
 
 def get_demo_user():
-    """Get the PayFlow buyer user (personal sandbox account)."""
-    user = User.query.first()
+    """Get the currently active PayFlow buyer user from session or DB."""
+    # Session may store the active buyer email chosen at login
+    active_email = session.get('buyer_email') or current_app.config.get('PAYPAL_BUYER_EMAIL', DEFAULT_BUYER_EMAIL)
+
+    user = User.query.filter_by(paypal_email=active_email).first()
     if not user:
-        buyer_email = current_app.config.get('PAYPAL_BUYER_EMAIL', 'sb-qjdsl53206694@business.example.com')
-        buyer_name = current_app.config.get('PAYPAL_BUYER_NAME', 'John Doe')
-        buyer_account_id = current_app.config.get('PAYPAL_BUYER_ACCOUNT_ID', 'RTFSG6HD676ML')
-        user = User(
-            name=buyer_name,
-            paypal_email=buyer_email,
-            paypal_account_id=buyer_account_id,
-            simulated_balance=1130.65,
-            risk_tier='LOW',
-            overdraft_limit=500.0
-        )
-        db.session.add(user)
-        db.session.commit()
+        # Fall back to first user in DB, or create the default
+        user = User.query.first()
+        if not user:
+            buyer_email = current_app.config.get('PAYPAL_BUYER_EMAIL', DEFAULT_BUYER_EMAIL)
+            buyer_name  = current_app.config.get('PAYPAL_BUYER_NAME', DEFAULT_BUYER_NAME)
+            buyer_account_id = current_app.config.get('PAYPAL_BUYER_ACCOUNT_ID', DEFAULT_BUYER_ACCOUNT_ID)
+            user = User(
+                name=buyer_name,
+                paypal_email=buyer_email,
+                paypal_account_id=buyer_account_id,
+                simulated_balance=DEFAULT_BUYER_BALANCE,
+                risk_tier='LOW',
+                overdraft_limit=500.0
+            )
+            db.session.add(user)
+            db.session.commit()
 
     # Always keep config.PAYPAL_BUYER_EMAIL synced to user.paypal_email
     current_app.config['PAYPAL_BUYER_EMAIL'] = user.paypal_email
     return user
+
+
+# ─── Buyer Sandbox Login / Logout ─────────────────────────────────────────────
+
+@checkout_bp.route('/api/user/login', methods=['POST'])
+def buyer_login():
+    """
+    Authenticate a buyer with their PayPal Sandbox email and password.
+
+    Modes:
+      • use_default=true  → Use the developer's default sandbox account
+                            (sb-tfjr4353268252@personal.example.com).
+      • email + password  → Look up or create a User record for the given
+                            sandbox email; attempt a live balance fetch using
+                            the stored buyer app credentials (if they match
+                            the default account) or fall back to the seeded
+                            balance from the DB / a sensible default.
+
+    The buyer's email is stored in the Flask session so get_demo_user() will
+    always resolve to the correct account for subsequent requests.
+    """
+    data = request.get_json() or {}
+    use_default = data.get('use_default', False)
+
+    demo_mode = current_app.config.get('DEMO_MODE', False)
+
+    # ── Branch A: Use developer's default sandbox account ─────────────────────
+    if use_default:
+        default_email = current_app.config.get('PAYPAL_BUYER_EMAIL', DEFAULT_BUYER_EMAIL)
+        default_name  = current_app.config.get('PAYPAL_BUYER_NAME', DEFAULT_BUYER_NAME)
+        default_acct  = current_app.config.get('PAYPAL_BUYER_ACCOUNT_ID', DEFAULT_BUYER_ACCOUNT_ID)
+
+        user = User.query.filter_by(paypal_email=default_email).first()
+        if not user:
+            user = User(
+                name=default_name,
+                paypal_email=default_email,
+                paypal_account_id=default_acct,
+                simulated_balance=DEFAULT_BUYER_BALANCE,
+                risk_tier='LOW',
+                overdraft_limit=500.0
+            )
+            db.session.add(user)
+            db.session.commit()
+
+        session['buyer_email'] = user.paypal_email
+        current_app.config['PAYPAL_BUYER_EMAIL'] = user.paypal_email
+
+        # Attempt live balance fetch for the default buyer account
+        live_balance = user.simulated_balance
+        balance_source = 'db_cached'
+        if not demo_mode:
+            try:
+                client = PayPalClient()
+                result = client.get_buyer_balance(user.paypal_email)
+                if result.get('success') and result.get('available_usd') is not None:
+                    live_balance = result['available_usd']
+                    user.simulated_balance = live_balance
+                    db.session.commit()
+                    balance_source = 'paypal_api'
+            except Exception as exc:
+                current_app.logger.warning(f"[Login/Default] Balance fetch failed: {exc}")
+
+        return jsonify({
+            'success': True,
+            'mode': 'default',
+            'user': {
+                'name': user.name,
+                'paypal_email': user.paypal_email,
+                'balance': round(live_balance, 2),
+                'balance_source': balance_source,
+            },
+            'message': f"Using default sandbox account: {user.paypal_email}"
+        })
+
+    # ── Branch B: Custom sandbox credentials ──────────────────────────────────
+    email    = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '').strip()
+
+    if not email:
+        return jsonify({'success': False, 'error': 'email_required',
+                        'message': 'Please enter your PayPal sandbox email.'}), 400
+
+    # Find existing user or create a new stub record for this email
+    user = User.query.filter_by(paypal_email=email).first()
+    if not user:
+        display_name = email.split('@')[0].replace('-', ' ').replace('.', ' ').title()
+        user = User(
+            name=display_name,
+            paypal_email=email,
+            paypal_account_id=None,
+            simulated_balance=DEFAULT_BUYER_BALANCE,
+            risk_tier='LOW',
+            overdraft_limit=500.0
+        )
+        db.session.add(user)
+        db.session.flush()  # get user.id before commit
+
+    session['buyer_email'] = email
+    current_app.config['PAYPAL_BUYER_EMAIL'] = email
+
+    live_balance = user.simulated_balance
+    balance_source = 'db_cached'
+    is_verified = False
+
+    if not demo_mode:
+        # Try fetching a live balance using the configured buyer app credentials
+        # (these work for the default account; for other accounts the call will
+        # succeed only if the buyer has their own app credentials configured).
+        try:
+            client = PayPalClient()
+            result = client.get_buyer_balance(email)
+            if result.get('success') and result.get('available_usd') is not None:
+                live_balance = result['available_usd']
+                user.simulated_balance = live_balance
+                balance_source = 'paypal_api'
+                is_verified = True
+        except Exception as exc:
+            current_app.logger.warning(f"[Login] Live balance fetch failed for {email}: {exc}")
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'mode': 'custom',
+        'verified': is_verified,
+        'user': {
+            'name': user.name,
+            'paypal_email': user.paypal_email,
+            'balance': round(live_balance, 2),
+            'balance_source': balance_source,
+        },
+        'message': (
+            f"Logged in as {email}. Live balance fetched from PayPal API."
+            if is_verified else
+            f"Logged in as {email}. Balance shown is from our records — live fetch unavailable."
+        )
+    })
+
+
+@checkout_bp.route('/api/user/logout', methods=['POST'])
+def buyer_logout():
+    """Clear the buyer session and reset to the default sandbox account."""
+    session.pop('buyer_email', None)
+    default_email = current_app.config.get('PAYPAL_BUYER_EMAIL', DEFAULT_BUYER_EMAIL)
+    current_app.logger.info(f"[Logout] Buyer session cleared. Reverting to default: {default_email}")
+    return jsonify({'success': True, 'message': 'Logged out. Default account restored.'})
 
 
 @checkout_bp.route('/api/user/settings', methods=['GET', 'POST'])

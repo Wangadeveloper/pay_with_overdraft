@@ -973,12 +973,20 @@ tbody tr:hover td {
   -webkit-backdrop-filter: blur(12px);
   z-index: 10000;
   display: flex;
-  align-items: center;
+  align-items: flex-start;          /* allow card to grow taller than viewport */
   justify-content: center;
   padding: var(--space-md);
+  overflow-y: auto;                 /* overlay itself scrolls on small screens */
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-base);
+}
+
+/* Center vertically when the card is shorter than the viewport */
+.modal-overlay::before {
+  content: '';
+  flex: 1 0 auto;
+  min-height: calc((100vh - 90dvh) / 2);
 }
 
 .modal-overlay.active {
@@ -992,11 +1000,19 @@ tbody tr:hover td {
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
   max-width: 500px;
+  max-height: 90dvh;                /* cap height so it doesn't exceed viewport */
+  overflow-y: auto;                 /* card content scrolls inside */
   width: 100%;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 196, 57, 0.2);
   transform: scale(0.92) translateY(20px);
   transition: transform var(--transition-slow);
+  /* Custom scrollbar to match dark theme */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,196,57,0.3) transparent;
 }
+.modal-card::-webkit-scrollbar        { width: 5px; }
+.modal-card::-webkit-scrollbar-track  { background: transparent; }
+.modal-card::-webkit-scrollbar-thumb  { background: rgba(255,196,57,0.3); border-radius: 3px; }
 
 .modal-overlay.active .modal-card {
   transform: scale(1) translateY(0);
