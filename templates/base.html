@@ -21,12 +21,6 @@
 </head>
 <body>
 
-<!-- Animated Background -->
-<div class="bg-orbs">
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-</div>
 
 <!-- Navigation -->
 <nav class="navbar" id="navbar">
@@ -39,7 +33,7 @@
       </div>
     </a>
 
-    <div class="nav-links">
+    <div class="nav-links" id="nav-links">
       <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
         <span class="nav-icon">📊</span> Dashboard
       </a>
@@ -54,7 +48,7 @@
       </a>
     </div>
 
-    <div class="nav-user">
+    <div class="nav-user" id="nav-user-block">
       <button
         onclick="openSandboxSettingsModal()"
         class="user-badge"
@@ -68,8 +62,25 @@
         </div>
       </button>
     </div>
+
+    <!-- Mobile hamburger toggle -->
+    <button
+      class="mobile-menu-toggle"
+      id="mobile-menu-toggle"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      aria-controls="nav-links"
+      onclick="toggleMobileMenu()"
+    >
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+    </button>
   </div>
 </nav>
+
+<!-- Mobile nav backdrop -->
+<div class="mobile-backdrop" id="mobile-backdrop" onclick="closeMobileMenu()"></div>
 
 <!-- PayPal Sandbox Account Settings Modal -->
 <div id="sandbox-settings-modal" class="modal-overlay">

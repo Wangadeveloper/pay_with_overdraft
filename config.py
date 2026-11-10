@@ -49,3 +49,10 @@ class Config:
     OVERDRAFT_INCOME_RATIO = 0.25  # 25% of 30-day income
     FLAT_FEE = 0.50               # $0.50 per overdraft event
     DEFAULT_DAYS = 30             # Days until overdraft is paused
+
+    # Gemini AI
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+    GEMINI_AGENT_ENABLED = os.environ.get('GEMINI_AGENT_ENABLED', 'true').lower() == 'true'
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash')
+    GEMINI_TIMEOUT_SECONDS = int(os.environ.get('GEMINI_TIMEOUT_SECONDS', 15))
+    GEMINI_MAX_RETRIES = int(os.environ.get('GEMINI_MAX_RETRIES', 1))

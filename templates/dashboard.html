@@ -258,22 +258,22 @@ new Chart(ctx, {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(13,21,37,0.95)',
-        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        borderColor: 'rgba(0,48,135,0.15)',
         borderWidth: 1,
-        titleColor: '#f0f4ff',
-        bodyColor: 'rgba(240,244,255,0.7)',
+        titleColor: '#0d1b2e',
+        bodyColor: '#334155',
         callbacks: { label: ctx => ` $${ctx.parsed.y.toFixed(2)}` }
       }
     },
     scales: {
       x: {
-        grid: { color: 'rgba(255,255,255,0.05)' },
-        ticks: { color: 'rgba(240,244,255,0.4)', font: { size: 11 } }
+        grid: { color: 'rgba(0, 48, 135, 0.06)' },
+        ticks: { color: '#475569', font: { size: 11, family: 'Inter' } }
       },
       y: {
-        grid: { color: 'rgba(255,255,255,0.05)' },
-        ticks: { color: 'rgba(240,244,255,0.4)', callback: v => '$' + v, font: { size: 11 } }
+        grid: { color: 'rgba(0, 48, 135, 0.06)' },
+        ticks: { color: '#475569', callback: v => '$' + v, font: { size: 11, family: 'Inter' } }
       }
     }
   }

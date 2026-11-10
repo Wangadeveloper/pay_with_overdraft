@@ -33,7 +33,7 @@
     <span id="balance-source-dot" style="width:10px;height:10px;border-radius:50%;background:var(--success);display:inline-block;flex-shrink:0"></span>
     <span style="font-weight:700;color:var(--text-primary)">PayFlow Funder Pool:</span>
     <span id="funder-pool-amount" style="font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:var(--success)">Fetching…</span>
-    <span style="color:var(--text-muted);font-size:0.75rem">(Real PayPal Balances API)</span>
+    <span style="color:var(--text-secondary);font-size:0.78rem;font-weight:500">(Real PayPal Balances API)</span>
   </div>
   <div style="display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:6px">
@@ -79,13 +79,13 @@
             oninput="updateGapDetector()"
           />
         </div>
-        <div style="margin-top:var(--space-xs);font-size:0.75rem;color:var(--text-muted)">
+        <div style="margin-top:var(--space-xs);font-size:0.78rem;color:var(--text-secondary);font-weight:500">
           💡 Try an amount greater than your wallet balance to trigger PayFlow overdraft
         </div>
       </div>
 
       <!-- Gap Detector Live Display -->
-      <div id="gap-display" class="card" style="margin-top:var(--space-md);background:rgba(255,255,255,0.03)">
+      <div id="gap-display" class="card" style="margin-top:var(--space-md)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm)">
           <div class="card-title" style="margin:0">⚡ Gap Detector Engine</div>
           <span id="balance-live-badge" style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,212,170,0.12);color:var(--success);border:1px solid rgba(0,212,170,0.3);display:none">
@@ -94,12 +94,12 @@
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:var(--space-md);text-align:center;align-items:center">
           <div>
-            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Order</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Order</div>
             <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--text-primary)" id="gap-order">$5,200.00</div>
           </div>
-          <div style="font-size:1.5rem;color:var(--text-muted)">−</div>
+          <div style="font-size:1.5rem;color:var(--text-secondary);font-weight:700">−</div>
           <div>
-            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">
+            <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">
               Wallet Balance
               <span id="gap-wallet-source" style="color:var(--success);display:none"> (live)</span>
             </div>
@@ -120,12 +120,12 @@
           <div style="font-size:2rem">⚠️</div>
           <div>
             <div style="font-weight:700;color:var(--danger);font-size:0.95rem">Wallet Shortfall Detected</div>
-            <div style="font-size:0.875rem;color:var(--text-secondary);margin-top:4px" id="shortfall-desc"></div>
+            <div style="font-size:0.875rem;color:var(--text-primary);margin-top:4px" id="shortfall-desc"></div>
           </div>
         </div>
-        <div id="overdraft-offer" style="margin-top:var(--space-md);padding:var(--space-md);background:rgba(0,112,186,0.1);border-radius:var(--radius-sm);border:1px solid rgba(0,112,186,0.25)">
-          <div style="font-size:0.875rem;color:var(--info);font-weight:600">✨ PayFlow Overdraft Available</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px" id="overdraft-offer-text"></div>
+        <div id="overdraft-offer" style="margin-top:var(--space-md);padding:var(--space-md);background:rgba(0,112,186,0.08);border-radius:var(--radius-sm);border:1px solid rgba(0,112,186,0.25)">
+          <div style="font-size:0.875rem;color:var(--pp-blue);font-weight:700">✨ PayFlow Overdraft Available</div>
+          <div style="font-size:0.82rem;color:var(--text-primary);margin-top:6px;font-weight:500" id="overdraft-offer-text"></div>
         </div>
       </div>
 
@@ -203,7 +203,7 @@
           <div style="width:16px;height:16px;border:2px solid var(--info);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div>
         </div>
       </div>
-      <div class="card-meta" id="sidebar-balance-label">
+      <div class="card-meta" id="sidebar-balance-label" style="color:var(--text-secondary);font-weight:500">
         Cached balance — fetching live…
       </div>
       <div class="divider"></div>
@@ -261,7 +261,7 @@
     <!-- Live Buyer Wallet Status & Test Presets -->
     <div class="card">
       <div class="card-title">💳 Personal Buyer Sandbox Account</div>
-      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-sm)">
+      <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:var(--space-sm);font-weight:500">
         Purchasing balance automatically populated from PayPal API:
       </div>
       <div style="background:rgba(0,112,186,0.08);border:1px solid rgba(0,112,186,0.25);border-radius:10px;padding:10px 14px;margin-bottom:var(--space-sm)">
@@ -288,15 +288,15 @@
     </div>
 
     <!-- PayPal REST API Diagnostic Card -->
-    <div class="card" style="border:1px solid rgba(0,112,186,0.3);background:rgba(10,25,47,0.7)">
-      <div class="card-title" style="font-size:0.88rem;color:var(--info)">🔍 PayPal REST API Diagnostic</div>
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm);line-height:1.4">
-        Test <code>GET /v1/reporting/balances</code> against PayPal Sandbox to inspect HTTP status codes &amp; debug credentials:
+    <div class="card">
+      <div class="card-title">🔍 PayPal REST API Diagnostic</div>
+      <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:var(--space-sm);line-height:1.5">
+        Test <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:0.72rem;color:var(--pp-blue)">GET /v1/reporting/balances</code> against PayPal Sandbox:
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="runPayPalApiDiagnostic()" id="run-diag-btn" style="width:100%;border-color:rgba(0,112,186,0.4)">
+      <button class="btn btn-ghost btn-sm" onclick="runPayPalApiDiagnostic()" id="run-diag-btn" style="width:100%">
         ⚡ Run API Diagnostic (/api/paypal/balances)
       </button>
-      <div id="diag-results" style="display:none;margin-top:var(--space-sm);padding:8px;background:rgba(0,0,0,0.4);border-radius:6px;font-family:monospace;font-size:0.7rem;line-height:1.3;max-height:160px;overflow-y:auto;white-space:pre-wrap;color:var(--text-secondary)"></div>
+      <pre id="diag-results" style="display:none;margin-top:var(--space-sm);padding:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:0.72rem;line-height:1.5;max-height:160px;overflow-y:auto;white-space:pre-wrap;color:var(--text-primary)"></pre>
     </div>
   </div>
 </div>
@@ -707,15 +707,18 @@ function updateGapDetector() {
   const offerEl = document.getElementById('overdraft-offer-text');
 
   if (shortfall <= 0) {
-    resultEl.innerHTML = `<span style="color:var(--success);font-weight:700;font-size:1.1rem">✅ No Shortfall — Wallet Covers It</span>`;
-    resultEl.style.background = 'rgba(0,212,170,0.08)';
+    resultEl.innerHTML = `<span style="color:var(--success);font-weight:800;font-size:1.05rem">✅ No Shortfall — Wallet Covers It</span>
+      <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;font-weight:500">Your wallet balance is sufficient for this order.</div>`;
+    resultEl.style.background = 'rgba(5,150,105,0.07)';
+    resultEl.style.border = '1px solid rgba(5,150,105,0.2)';
     alertEl.classList.add('hidden');
   } else {
     resultEl.innerHTML = `
-      <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Shortfall</div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Shortfall</div>
       <div style="font-family:'Outfit',sans-serif;font-size:2rem;font-weight:800;color:var(--danger)">$${shortfall.toFixed(2)}</div>
     `;
-    resultEl.style.background = 'rgba(255,77,109,0.08)';
+    resultEl.style.background = 'rgba(220,38,38,0.07)';
+    resultEl.style.border = '1px solid rgba(220,38,38,0.18)';
     alertEl.classList.remove('hidden');
     descEl.textContent = `Your wallet has $${walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} but the order requires $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} — PayFlow will cover the $${shortfall.toFixed(2)} gap.`;
 
@@ -723,9 +726,11 @@ function updateGapDetector() {
     if (shortfall <= overdraftLimit) {
       offerEl.textContent = `✓ Overdraft of $${shortfall.toFixed(2)} + $0.50 fee available. Requires your confirmation.`;
       offer.style.borderColor = 'rgba(0,112,186,0.25)';
+      offer.style.background = 'rgba(0,112,186,0.08)';
     } else {
       offerEl.textContent = `⚠ Shortfall of $${shortfall.toFixed(2)} exceeds your limit of $${overdraftLimit.toFixed(2)}. Checkout will be declined.`;
-      offer.style.borderColor = 'rgba(255,77,109,0.4)';
+      offer.style.borderColor = 'rgba(220,38,38,0.4)';
+      offer.style.background = 'rgba(220,38,38,0.07)';
     }
   }
 }

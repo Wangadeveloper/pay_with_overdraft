@@ -224,26 +224,32 @@ def generate_gemini_response(message: str, context: dict) -> dict | None:
     """
     Ask Gemini for a natural-language response using the supported google-genai SDK.
 
+    Respects the following config/env vars:
+    - GEMINI_AGENT_ENABLED  : skip entirely when false
+    - GEMINI_API_KEY        : required; also accepts GOOGLE_API_KEY
+    - GEMINI_MODEL          : model name (default gemini-2.5-flash-preview-05-20)
+    - GEMINI_TIMEOUT_SECONDS: HTTP timeout in seconds (default 15)
+    - GEMINI_MAX_RETRIES    : retry count on transient failure (default 1)
+
     Returns a validated {message, suggestions} dict, or None if Gemini is
     unavailable so the caller can use the rule-based fallback.
     """
+    # Check the agent-enabled flag first
+    agent_enabled = os.getenv("GEMINI_AGENT_ENABLED", "true").lower()
+    if agent_enabled not in ("true", "1", "yes"):
+        current_app.logger.info("Gemini agent disabled via GEMINI_AGENT_ENABLED; using rule-based fallback.")
+        return None
+
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         current_app.logger.info("Gemini API key not configured; using rule-based fallback.")
         return None
 
-    try:
-        # google-genai is the current SDK. Install with:
-        # python -m pip install -U google-genai
-        from google import genai
-        from google.genai import types
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-preview-05-20")
+    timeout_seconds = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "15"))
+    max_retries = int(os.getenv("GEMINI_MAX_RETRIES", "1"))
 
-        client = genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(timeout=60_000),
-        )
-
-        prompt = f"""
+    prompt = f"""
 You are PayFlow's friendly financial product assistant.
 Answer the user's question using the supplied current account context and the
 PayFlow product facts below. Be concise, helpful, and clear. Use Markdown in
@@ -275,57 +281,77 @@ User message:
 {message}
 """
 
-        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-        result = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=1050,
-                response_mime_type="application/json",
-            ),
-        )
-        raw = (getattr(result, "text", None) or "").strip()
-        if not raw:
-            current_app.logger.warning("Gemini returned an empty response.")
-            return None
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            # google-genai is the current SDK. Install with:
+            # python -m pip install -U google-genai
+            from google import genai
+            from google.genai import types
 
-        # Tolerate JSON fenced by Markdown, even if the model ignores JSON mode.
-        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE).strip()
-        parsed = json.loads(raw)
-        if not isinstance(parsed, dict):
-            return None
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(timeout=timeout_seconds * 1000),
+            )
 
-        answer = parsed.get("message")
-        suggestions = parsed.get("suggestions", [])
+            result = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    max_output_tokens=1050,
+                    response_mime_type="application/json",
+                ),
+            )
+            raw = (getattr(result, "text", None) or "").strip()
+            if not raw:
+                current_app.logger.warning("Gemini returned an empty response.")
+                return None
 
-        if not isinstance(answer, str) or not answer.strip():
-            return None
-        if not isinstance(suggestions, list):
-            suggestions = []
-        suggestions = [
-            str(item).strip()
-            for item in suggestions
-            if isinstance(item, (str, int, float)) and str(item).strip()
-        ][:4]
+            # Tolerate JSON fenced by Markdown, even if the model ignores JSON mode.
+            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE).strip()
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                return None
 
-        return {
-            "message": answer.strip(),
-            "suggestions": suggestions or [
-                "What is my overdraft limit?",
-                "When is my repayment due?",
-                "How can I improve my risk tier?",
-            ],
-        }
-    except Exception as exc:
-        # Keep chat available when the provider is slow, unreachable, misconfigured,
-        # or returns invalid JSON. Do not expose API credentials or provider errors.
-        current_app.logger.warning(
-            "Gemini request failed (%s); using rule-based fallback.",
-            type(exc).__name__,
-        )
-        current_app.logger.debug("Gemini failure details", exc_info=True)
-        return None
+            answer = parsed.get("message")
+            suggestions = parsed.get("suggestions", [])
+
+            if not isinstance(answer, str) or not answer.strip():
+                return None
+            if not isinstance(suggestions, list):
+                suggestions = []
+            suggestions = [
+                str(item).strip()
+                for item in suggestions
+                if isinstance(item, (str, int, float)) and str(item).strip()
+            ][:4]
+
+            return {
+                "message": answer.strip(),
+                "suggestions": suggestions or [
+                    "What is my overdraft limit?",
+                    "When is my repayment due?",
+                    "How can I improve my risk tier?",
+                ],
+            }
+
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                current_app.logger.warning(
+                    "Gemini request failed on attempt %d/%d (%s); retrying...",
+                    attempt + 1, max_retries + 1, type(exc).__name__,
+                )
+            else:
+                # All attempts exhausted — fall back to rule-based responses.
+                current_app.logger.warning(
+                    "Gemini request failed after %d attempt(s) (%s); using rule-based fallback.",
+                    max_retries + 1, type(last_exc).__name__,
+                )
+                current_app.logger.debug("Gemini failure details", exc_info=True)
+
+    return None
 
 
 @ai_bp.route("/ai")

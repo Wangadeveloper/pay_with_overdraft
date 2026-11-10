@@ -135,3 +135,49 @@ async function saveSandboxSettings() {
     showToast('Network error saving settings: ' + e.message, 'error');
   }
 }
+
+// ─── Mobile Navigation ───────────────────────────────────────────────
+function toggleMobileMenu() {
+  const navLinks = document.getElementById('nav-links');
+  const backdrop = document.getElementById('mobile-backdrop');
+  const toggle = document.getElementById('mobile-menu-toggle');
+  if (!navLinks) return;
+
+  const isOpen = navLinks.classList.contains('mobile-open');
+  if (isOpen) {
+    closeMobileMenu();
+  } else {
+    navLinks.classList.add('mobile-open');
+    backdrop && backdrop.classList.add('active');
+    toggle && toggle.setAttribute('aria-expanded', 'true');
+    toggle && toggle.classList.add('active');
+    document.body.classList.add('mobile-nav-open');
+  }
+}
+
+function closeMobileMenu() {
+  const navLinks = document.getElementById('nav-links');
+  const backdrop = document.getElementById('mobile-backdrop');
+  const toggle = document.getElementById('mobile-menu-toggle');
+  if (!navLinks) return;
+
+  navLinks.classList.remove('mobile-open');
+  backdrop && backdrop.classList.remove('active');
+  toggle && toggle.setAttribute('aria-expanded', 'false');
+  toggle && toggle.classList.remove('active');
+  document.body.classList.remove('mobile-nav-open');
+}
+
+// Auto-close mobile menu if viewport grows past 768px
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) {
+    closeMobileMenu();
+  }
+}, { passive: true });
+
+// Close mobile menu when any nav link is clicked
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#nav-links .nav-link').forEach(link => {
+    link.addEventListener('click', () => closeMobileMenu());
+  });
+});
